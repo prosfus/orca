@@ -30,6 +30,50 @@ it carries a *plan*: tasks, phases, and dependencies. The semantic meaning (what
 a phase, a dependency, a status) is layered onto JSON Canvas by convention (the "rules"),
 not by a separate format. Distinct from **Orchestration** (below).
 
+### Plan
+The semantic layer the Canvas carries: the set of Canvas tasks, their phases, and the
+dependencies between them, for one workspace. The Canvas is the spatial board; the Plan is
+the meaning read off it (the "rules").
+
+### Phase
+A named stage of a Plan, drawn as a JSON Canvas group. A task belongs to the phase whose
+group encloses it geometrically — JSON Canvas has no parent/child field, so spatial
+containment is the only membership signal. Moving a task into or out of a group re-assigns
+its phase (as in Obsidian).
+
+### Dependency
+A directed "must happen before" relation between two Canvas tasks, drawn as an arrow from
+**prerequisite → dependent**. Dependencies live only as edges — never duplicated in a task's
+metadata.
+
+### Status
+The *stored* lifecycle marker of one Canvas task: `todo`, `in-progress`, `blocked`, or
+`done`. `blocked` is a **manual** "needs attention" flag set by an agent or human — it is
+**not** the same as not being **Ready** (which is derived from dependencies). Status is the
+machine-truth for "where this task stands" and is mirrored to the node's color.
+
+### Ready
+A **derived** property (computed from the dependency edges, never stored): a task is ready
+when every prerequisite is `done`. Same meaning as the orchestration "ready" state, but
+Canvas readiness is *pulled* (an agent picks it) rather than *pushed* by a coordinator.
+Independent of **Status** — a `todo` task may not yet be ready.
+
+### Claim
+The act of an agent taking ownership of a ready Canvas task — atomically (under an exclusive
+lock) setting its owner to itself and status to in-progress, failing if already owned. The
+mechanism by which several agents in one workspace avoid working the same task.
+
+### Owner
+The agent currently responsible for a Canvas task, set by a **Claim**. Identity is the
+agent's pane key (`ORCA_PANE_KEY` = `tabId:leafId`) — which is per-session, so an owner can
+go stale if its pane dies. A task can be **released** (owner cleared) or re-claimed
+(*stolen*) once its claim is stale, so a dead owner never deadlocks the plan.
+
+### Artifact link
+A `file` or `link` JSON Canvas node (a repo file, or an issue/PR/URL) connected by an edge
+to a Canvas task — the real thing the task touches. General rule: scalar metadata lives in
+the task's front-matter; *relationships* (dependencies, artifacts) live as edges/nodes.
+
 ## Boundary with existing terms — do not collide
 
 ### Orchestration  *(existing)*

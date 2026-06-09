@@ -29,6 +29,7 @@ import {
   MANAGED_AGENT_HOOK_INSTALLERS,
   removeManagedAgentHooks
 } from './agent-hooks/managed-agent-hook-controls'
+import { installCanvasCliLocal } from './canvas/canvas-cli-installer'
 import { initCohortClassifier } from './telemetry/cohort-classifier'
 import { initOnboardingCohortClassifier } from './telemetry/onboarding-cohort-classifier'
 import { resolveConsent } from './telemetry/consent'
@@ -1266,6 +1267,13 @@ app.whenReady().then(async () => {
     } else {
       removeManagedAgentHooks()
     }
+  }
+  // Why: the `orca canvas` launcher is independent of the agent-status-hooks toggle — agents
+  // must be able to plan even with status hooks off. Best-effort; never block launch.
+  try {
+    installCanvasCliLocal()
+  } catch (error) {
+    console.warn('[canvas] Failed to install local canvas CLI launcher:', error)
   }
 
   app.on('child-process-gone', (_event, details) => {

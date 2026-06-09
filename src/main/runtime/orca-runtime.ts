@@ -92,6 +92,7 @@ import { buildSetupRunnerCommand } from '../../shared/setup-runner-command'
 import { TASK_PROVIDERS } from '../../shared/task-providers'
 import { FIRST_PANE_ID } from '../../shared/pane-key'
 import { isTerminalLeafId, makePaneKey, parsePaneKey } from '../../shared/stable-pane-id'
+import { canvasPaneEnv } from '../canvas/canvas-pane-env'
 import { parseAppSshPtyId } from '../../shared/ssh-pty-id'
 import { isValidHostTerminalTabId } from '../../shared/terminal-tab-id'
 import { buildAgentDraftLaunchPlan, buildAgentStartupPlan } from '../../shared/tui-agent-startup'
@@ -11093,7 +11094,8 @@ export class OrcaRuntimeService {
         ...agentTeamsPlan?.env,
         ORCA_PANE_KEY: paneKey,
         ORCA_TAB_ID: tabId,
-        ORCA_WORKTREE_ID: worktree.id
+        ORCA_WORKTREE_ID: worktree.id,
+        ...canvasPaneEnv(worktree, { local: !repo?.connectionId })
       }
       const result = await this.ptyController.spawn({
         cols: 120,
@@ -11722,7 +11724,8 @@ export class OrcaRuntimeService {
         ...opts.env,
         ORCA_PANE_KEY: paneKey,
         ORCA_TAB_ID: parentTabId,
-        ORCA_WORKTREE_ID: worktree.id
+        ORCA_WORKTREE_ID: worktree.id,
+        ...canvasPaneEnv(worktree, { local: !repo?.connectionId })
       },
       envToDelete: opts.envToDelete,
       connectionId: repo?.connectionId ?? null,

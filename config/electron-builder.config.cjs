@@ -88,6 +88,9 @@ module.exports = {
   // dlopen()'d from inside the asar archive.
   asarUnpack: [
     'out/cli/**',
+    // Why: the canvas CLI bundle is executed by a child `node` process, which cannot run a
+    // file from inside app.asar — it must be a real unpacked file.
+    'out/canvas-cli/**',
     'out/shared/**',
     'out/main/agent-hooks/**',
     'out/main/antigravity/**',

@@ -20,6 +20,7 @@ import { SshFilesystemProvider } from '../providers/ssh-filesystem-provider'
 import { SshGitProvider } from '../providers/ssh-git-provider'
 import { agentHookServer } from '../agent-hooks/server'
 import { installRemoteManagedAgentHooks } from '../agent-hooks/remote-managed-hook-installers'
+import { readCanvasCliBundle } from '../canvas/canvas-cli-installer'
 import { isAgentStatusHooksEnabled } from '../agent-hooks/managed-agent-hook-controls'
 import {
   AGENT_HOOK_INSTALL_PLUGINS_METHOD,
@@ -515,6 +516,17 @@ export class SshRelaySession {
     }
 
     await this.installRemoteOrcaCliShim()
+    // Best-effort: ship the standalone canvas CLI to the remote bin dir (already on the agent
+    // PATH). A failure here must never break the SSH session.
+    try {
+      await this.installRemoteCanvasCli()
+    } catch (error) {
+      console.warn(
+        `[ssh-relay-session] remote canvas CLI install failed for ${this.targetId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
     if (shouldContinue && !shouldContinue()) {
       return false
     }
@@ -629,6 +641,52 @@ export class SshRelaySession {
     }
     if (!isWindowsRemoteHost(hostPlatform)) {
       await execCommand(conn, makeRemoteExecutableCommand(hostPlatform, shim.path))
+    }
+  }
+
+  // Ships the standalone canvas CLI to the remote bin dir (which is already on the agent PATH),
+  // so remote agents can run `orca-canvas`. Mirrors installRemoteOrcaCliShim's write pattern.
+  private async installRemoteCanvasCli(): Promise<void> {
+    if (!this.remoteCliBridgeEnv) {
+      return
+    }
+    const { binDir, nodePath } = this.remoteCliBridgeEnv
+    const bundlePath = `${binDir}/orca-canvas.cjs`
+    const wrapperPath = `${binDir}/orca-canvas`
+    const wrapper = [
+      '#!/usr/bin/env sh',
+      'set -eu',
+      `exec ${quoteSh(nodePath)} ${quoteSh(bundlePath)} "$@"`,
+      ''
+    ].join('\n')
+    const bundle = readCanvasCliBundle()
+    await execCommand(this.requireReadyConnection(), `mkdir -p ${shellEscape(binDir)}`)
+    const conn = this.requireReadyConnection()
+    await this.writeRemoteTextFile(conn, bundlePath, bundle)
+    await this.writeRemoteTextFile(conn, wrapperPath, wrapper)
+    await execCommand(conn, `chmod 755 ${shellEscape(wrapperPath)}`)
+  }
+
+  private async writeRemoteTextFile(
+    conn: SshConnection,
+    remotePath: string,
+    content: string
+  ): Promise<void> {
+    if (typeof conn.writeFile === 'function') {
+      await conn.writeFile(remotePath, content)
+      return
+    }
+    const sftp = await conn.sftp()
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const ws = sftp.createWriteStream(remotePath)
+        sftp.once('error', reject)
+        ws.once('close', resolve)
+        ws.once('error', reject)
+        ws.end(content)
+      })
+    } finally {
+      sftp.end()
     }
   }
 

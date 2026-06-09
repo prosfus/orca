@@ -54,6 +54,7 @@ import {
   parseLegacyNumericPaneKey,
   parsePaneKey
 } from '../../shared/stable-pane-id'
+import { canvasPathForWorktreeId, localCanvasBinPath } from '../canvas/canvas-pane-env'
 import {
   clearMigrationUnsupportedPty,
   clearMigrationUnsupportedPtysForPaneKey
@@ -2142,12 +2143,32 @@ export function registerPtyHandlers(
         } else if (!args.connectionId) {
           delete baseEnv.ORCA_WORKTREE_ID
         }
+        // Why: the agent's `orca canvas` CLI finds this workspace's file via
+        // ORCA_CANVAS_PATH; gate it on the same verified pane as the other ORCA_ vars.
+        const canvasPath =
+          typeof args.worktreeId === 'string'
+            ? canvasPathForWorktreeId(store, args.worktreeId)
+            : undefined
+        if (canvasPath) {
+          baseEnv.ORCA_CANVAS_PATH = canvasPath
+        } else {
+          delete baseEnv.ORCA_CANVAS_PATH
+        }
+        // Local panes also get the launcher path; remote panes are pointed at their own bin by
+        // the SSH session setup, so the local path never leaks across the wire.
+        if (canvasPath && !args.connectionId) {
+          baseEnv.ORCA_CANVAS_BIN = localCanvasBinPath()
+        } else {
+          delete baseEnv.ORCA_CANVAS_BIN
+        }
       } else if (baseEnv) {
         // Why: ORCA_PANE_KEY crosses into shells and hook registries. Only the
         // key proven to match this spawn's tab+leaf may leave the IPC boundary.
         delete baseEnv.ORCA_PANE_KEY
         delete baseEnv.ORCA_TAB_ID
         delete baseEnv.ORCA_WORKTREE_ID
+        delete baseEnv.ORCA_CANVAS_PATH
+        delete baseEnv.ORCA_CANVAS_BIN
       }
       const validatedPaneKey = stablePaneKey
       const validatedLeafId = verifiedLeafId ?? metadataLeafId
