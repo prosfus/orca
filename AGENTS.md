@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Product Scope
+
+This application is personal-use software for Pau. It will not be deployed to, distributed to, or operated for other users.
+
+When making product or engineering decisions, optimize for the single-user local/SSH workflow instead of generalized multi-tenant, enterprise, or public-deployment concerns. This can justify simpler implementations, fewer configuration layers, and pragmatic tradeoffs, as long as they do not violate safety, cross-platform support, SSH usage, or existing project constraints.
+
 ## Design System
 
 All UI work — layout, color, typography, spacing, component selection, UX behavior — must follow [`docs/STYLEGUIDE.md`](./docs/STYLEGUIDE.md). Use the tokens defined in `src/renderer/src/assets/main.css` (the canonical source) and the shadcn primitives in `src/renderer/src/components/ui/`. Don't invent new color values, font sizes, or shadow tiers when a documented one already covers the role. When STYLEGUIDE.md is silent, follow the resolution order in its final section.
