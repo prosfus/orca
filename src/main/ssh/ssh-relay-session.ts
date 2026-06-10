@@ -52,6 +52,7 @@ import type { SshPortForwardManager } from './ssh-port-forward'
 import type { SshConnection } from './ssh-connection'
 import { joinRemotePath, isWindowsRemoteHost, type RemoteHostPlatform } from './ssh-remote-platform'
 import { makeRemoteDirectoryCommand, makeRemoteExecutableCommand } from './ssh-remote-commands'
+import { shellEscape } from './ssh-connection-utils'
 import {
   DEFAULT_SSH_RELAY_GRACE_PERIOD_SECONDS,
   type DetectedPort,
