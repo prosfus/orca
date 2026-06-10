@@ -6,6 +6,8 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { preloadE2EConfig } from './e2e-config'
 import { glApi } from './gitlab'
 import type { AppIdentity } from '../shared/app-identity'
+import type { CanvasMutation } from '../shared/canvas/canvas-mutation'
+import type { CanvasReadResult } from '../shared/canvas/canvas-plan-view'
 import type { CliInstallStatus } from '../shared/cli-install-types'
 import type { AgentHookInstallStatus } from '../shared/agent-hook-types'
 import type { TerminalPaneSplitSource } from '../shared/feature-education-telemetry'
@@ -2259,6 +2261,13 @@ const api = {
       connectionId?: string | null
     }): Promise<{ stdout: string; stderr: string; exitCode: number | null; error?: string }> =>
       ipcRenderer.invoke('notebook:runPythonCell', args)
+  },
+
+  canvas: {
+    read: (args: { worktreeId: string }): Promise<CanvasReadResult> =>
+      ipcRenderer.invoke('canvas:read', args),
+    mutate: (args: { worktreeId: string; mutation: CanvasMutation }): Promise<CanvasReadResult> =>
+      ipcRenderer.invoke('canvas:mutate', args)
   },
 
   fs: {

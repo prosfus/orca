@@ -30,6 +30,11 @@ type CheckFailureSource = 'event' | 'promise' | 'fallback-promise'
 type MissingManifestPrereleaseFallbackResult = { userInitiated: boolean }
 type PrimaryEventSuppression = { failureKey: string; error: unknown }
 
+// Personal local build: keep the updater fully disabled so this version is
+// never auto-replaced by the official stablyai/orca releases. Set to false to
+// restore normal update behavior. (Not for upstream/commit.)
+const PERSONAL_BUILD_DISABLE_UPDATER: boolean = true
+
 const AUTO_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 const AUTO_UPDATE_RETRY_INTERVAL_MS = 60 * 60 * 1000
 const NUDGE_POLL_INTERVAL_MS = 30 * 60 * 1000
@@ -678,6 +683,9 @@ export function checkForUpdates(): void {
   // attribute makes the always-success semantics explicit and queryable
   // (so a dashboard tile can't accidentally treat this span's success rate
   // as the actual update-check success rate).
+  if (PERSONAL_BUILD_DISABLE_UPDATER) {
+    return
+  }
   void withUpdaterSpan({ stage: 'check' }, async (span) => {
     span.setAttribute('updater.outcome', 'launched')
     runBackgroundUpdateCheck()
@@ -698,6 +706,10 @@ function enableIncludePrerelease(): void {
 
 /** Menu-triggered check — delegates feedback to renderer toasts via userInitiated flag */
 export function checkForUpdatesFromMenu(options?: { includePrerelease?: boolean }): void {
+  if (PERSONAL_BUILD_DISABLE_UPDATER) {
+    sendStatus({ state: 'not-available', userInitiated: true })
+    return
+  }
   if (!app.isPackaged || is.dev) {
     sendStatus({ state: 'not-available', userInitiated: true })
     return
@@ -843,6 +855,9 @@ export function setupAutoUpdater(
     setDismissedUpdateNudgeId?: (id: string | null) => void
   }
 ): void {
+  if (PERSONAL_BUILD_DISABLE_UPDATER) {
+    return
+  }
   mainWindowRef = mainWindow
   onBeforeQuitCleanup = opts?.onBeforeQuit ?? null
   persistLastUpdateCheckAt = opts?.setLastUpdateCheckAt ?? null

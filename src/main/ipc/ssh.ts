@@ -1160,3 +1160,7 @@ export function getSshConnectionStore(): SshConnectionStore | null {
 export function getActiveMultiplexer(connectionId: string): SshChannelMultiplexer | undefined {
   return activeSessions.get(connectionId)?.getMux() ?? undefined
 }
+
+export function getActiveSshRelaySession(connectionId: string): SshRelaySession | undefined {
+  return activeSessions.get(connectionId)
+}

@@ -1,0 +1,30 @@
+/* The bundled @xyflow/react styles render the zoom/fit Controls as bare white blocks, which
+   clash with the app surface and disappear into a white card (or glare in dark mode). Re-skin
+   the Controls chrome with Orca tokens. Scoped under .canvas-board so it never leaks. */
+
+.canvas-board .react-flow__controls {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+}
+
+.canvas-board .react-flow__controls-button {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border-bottom: 1px solid var(--border);
+}
+
+.canvas-board .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.canvas-board .react-flow__controls-button:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
+/* SVG icons take the button's themed color (default sheet pins them to a fixed fill). */
+.canvas-board .react-flow__controls-button svg {
+  fill: currentColor;
+}

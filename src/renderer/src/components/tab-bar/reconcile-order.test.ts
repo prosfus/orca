@@ -32,4 +32,10 @@ describe('reconcileTabOrder', () => {
     const stored = ['t1', 'e1', 't2', 'e2']
     expect(reconcileTabOrder(stored, ['t1', 't2'], ['e1', 'e2'])).toEqual(['t1', 'e1', 't2', 'e2'])
   })
+
+  it('keeps canvas tabs in the order (regression: canvas chip was dropped from the strip)', () => {
+    // Canvas ids are the 6th arg; a stored canvas id must survive reconciliation.
+    expect(reconcileTabOrder(['c1', 't1'], ['t1'], [], [], [], ['c1'])).toEqual(['c1', 't1'])
+    expect(reconcileTabOrder(undefined, ['t1'], [], [], [], ['c1'])).toEqual(['t1', 'c1'])
+  })
 })

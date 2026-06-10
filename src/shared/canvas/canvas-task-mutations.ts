@@ -177,3 +177,15 @@ export function removeTask(canvas: Canvas, id: string, opts: { force?: boolean }
     edges: canvas.edges.filter((edge) => edge.fromNode !== id && edge.toNode !== id)
   }
 }
+
+// Move an existing node to (x, y). The one mutation the agent CLI never issues — agents only
+// place NEW nodes (ADR layout-authority rule); the human's drag is what moves existing nodes.
+export function moveNode(canvas: Canvas, id: string, x: number, y: number): Canvas {
+  if (!findNodeById(canvas, id)) {
+    throw new Error(`No Canvas node with id "${id}"`)
+  }
+  return {
+    ...canvas,
+    nodes: canvas.nodes.map((node) => (node.id === id ? { ...node, x, y } : node))
+  }
+}

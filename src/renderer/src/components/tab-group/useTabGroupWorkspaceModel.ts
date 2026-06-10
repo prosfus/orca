@@ -260,7 +260,8 @@ export function useTabGroupWorkspaceModel({
       if (item.contentType === 'browser') {
         destroyWorkspaceWebviews(useAppStore.getState().browserPagesByWorkspace, item.entityId)
         closeBrowserTab(item.entityId)
-      } else if (item.contentType === 'simulator') {
+      } else if (item.contentType === 'simulator' || item.contentType === 'canvas') {
+        // Canvas has no editor-file entity to dereference; close it as a plain unified tab.
         closeUnifiedTab(item.id)
       } else {
         const canCloseTab = closeEditorIfUnreferenced(item.entityId, item.id)
@@ -309,7 +310,7 @@ export function useTabGroupWorkspaceModel({
         } else if (item.contentType === 'browser') {
           destroyWorkspaceWebviews(useAppStore.getState().browserPagesByWorkspace, item.entityId)
           closeBrowserTab(item.entityId)
-        } else if (item.contentType === 'simulator') {
+        } else if (item.contentType === 'simulator' || item.contentType === 'canvas') {
           closeUnifiedTab(item.id)
         } else {
           const canCloseTab = closeEditorIfUnreferenced(item.entityId, item.id)
@@ -384,6 +385,9 @@ export function useTabGroupWorkspaceModel({
       if (item.contentType === 'simulator') {
         setActiveTabType('simulator')
         // simulator has no editor file entity
+      } else if (item.contentType === 'canvas') {
+        // Canvas is a document-style tab with no editor file; don't point activeFile at it.
+        setActiveTabType('editor')
       } else {
         setActiveFile(item.entityId)
         setActiveTabType('editor')
@@ -576,6 +580,22 @@ export function useTabGroupWorkspaceModel({
       createSplitGroup,
       newBrowserTab: () => {
         void openNewBrowserTabInActiveWorkspace(groupId)
+      },
+      // Why: one Canvas per workspace — focus the existing tab in this group if present, else
+      // create it. The panel resolves the file from worktreeId, so entityId is a constant.
+      newCanvasTab: () => {
+        const state = useAppStore.getState()
+        const existing = state.findTabForEntityInGroup(worktreeId, groupId, 'canvas', 'canvas')
+        if (existing) {
+          state.activateTab(existing.id)
+          return
+        }
+        state.createUnifiedTab(worktreeId, 'canvas', {
+          entityId: 'canvas',
+          label: 'Canvas',
+          targetGroupId: groupId,
+          activate: true
+        })
       },
       newSimulatorTab: worktreeState.mobileEmulatorEnabled
         ? () => {

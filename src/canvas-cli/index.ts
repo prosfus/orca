@@ -11,6 +11,7 @@ const USAGE = `orca canvas <command> [args] [--flags]
   add-task "<title>" [--phase P] [--after a,b] [--priority p] [--est e] [--ref r] [--desc d]
   set <id> [--title t] [--desc d] [--priority p] [--est e] [--ref r]
   set-status <id> <todo|in-progress|blocked|done>
+  set-position <id> <x> <y>                (Orca UI / remote-write only)
   link <prerequisiteId> <dependentId>      unlink <prerequisiteId> <dependentId>
   add-phase "<label>"
   next [--phase P]                         list [--ready] [--mine] [--phase P]

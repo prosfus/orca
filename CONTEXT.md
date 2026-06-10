@@ -90,3 +90,36 @@ interoperate later, but they are distinct concepts and must not be conflated.
 - **Work item**: an *external* tracker issue/PR (GitHub/GitLab/Linear/Jira) (existing).
 
 Always qualify "task" until context makes it unambiguous.
+
+## Incidencia diagnostics  *(new — this initiative)*
+
+A bridge to **Trabe** (the construction ERP, repo folder `LiBuilding`, context `# Trabe`):
+when a support **Incidencia** enters Trabe, Orca auto-launches a read-only coding agent that
+investigates and writes an explanation. Trabe is a separate context — see its own
+`CONTEXT.md`; the canonical glossary entry for **Agente de diagnóstico** lives there.
+
+### Incidencia
+A support ticket originating in Trabe (`Incidencia` model). In Orca it is a **work item** of
+a new task provider (**Trabe**), surfaced in the *Tasks* view alongside GitHub/GitLab/Linear/
+Jira. Both how Orca *detects* new ones and how the agent *investigates* them read Trabe's
+database directly (Orca via hard read-only SELECTs; the agent more broadly) — see
+ADR-0002 / ADR-0003.
+
+### Agente de diagnóstico (diagnostic agent)
+The coding agent Orca auto-launches for a new **Incidencia** to gather information, explain
+what is happening, and propose a solution. By design it is **read-only toward Trabe** — it
+reads code + the incidencia + related real data and produces only its markdown; it does not
+modify the product, push, or write back (the read-only property is *prompt-enforced*, not
+credential-enforced — see ADR-0003). It is **ephemeral** (its worktree is harvested for the
+markdown, then cleaned). Distinct from a Trabe *agente* (a human support person).
+_Avoid_: bare "agent", automation, triage bot.
+
+### Diagnóstico (diagnosis run)
+The dedicated, ephemeral run record for one launch of an **Agente de diagnóstico**: its status
+(investigating / ready / failed) and its final **markdown**, stored locally in Orca. Not an
+`AutomationRun` and not a persistent **Workspace**.
+
+### Incidencias section
+A dedicated sidebar section at the bottom of the worktree sidebar listing **Diagnósticos**.
+Kept **separate from the Workspaces list** on purpose — diagnostic worktrees are hidden from
+Workspaces and shown only here.

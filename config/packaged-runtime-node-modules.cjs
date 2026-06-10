@@ -36,9 +36,16 @@ const PARCEL_WATCHER_PLATFORM_PREFIX_BY_PLATFORM = {
 const TYPE_DECLARATION_ARTIFACT_RE = /\.d\.(?:c|m)?ts(?:\.map)?$/
 const VERSIONED_ONNXRUNTIME_DYLIB_RE = /^libonnxruntime\.\d[\d.]*\.dylib$/
 
+// Why: experimental builtins (e.g. node:sqlite) are real Node/Electron runtime
+// modules but are omitted from module.builtinModules, so the verifier would
+// otherwise flag them as missing npm packages that need copied node_modules.
+const EXPERIMENTAL_NODE_BUILTINS = ['sqlite']
+
 const NODE_BUILTINS = new Set([
   ...builtinModules,
-  ...builtinModules.map((moduleName) => `node:${moduleName}`)
+  ...builtinModules.map((moduleName) => `node:${moduleName}`),
+  ...EXPERIMENTAL_NODE_BUILTINS,
+  ...EXPERIMENTAL_NODE_BUILTINS.map((moduleName) => `node:${moduleName}`)
 ])
 
 function packageNameFromSpecifier(specifier) {

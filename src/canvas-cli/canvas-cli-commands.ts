@@ -11,6 +11,7 @@ import {
   isTaskReady,
   linkDependency,
   listTasks,
+  moveNode,
   mutateCanvas,
   prerequisiteIdsOf,
   readCanvas,
@@ -91,6 +92,21 @@ async function setStatus(ctx: CommandContext): Promise<CommandResult> {
     result: undefined
   }))
   return { human: `${id} -> ${status}`, json: { id, status } }
+}
+
+// Why: only Orca's UI/remote-write path issues this — agents never move existing nodes.
+async function setPosition(ctx: CommandContext): Promise<CommandResult> {
+  const id = requireArg(ctx, 0, 'id')
+  const x = Number(requireArg(ctx, 1, 'x'))
+  const y = Number(requireArg(ctx, 2, 'y'))
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error('set-position requires numeric <x> <y>')
+  }
+  await mutateCanvas(ctx.file, (canvas) => ({
+    canvas: moveNode(canvas, id, x, y),
+    result: undefined
+  }))
+  return { human: `${id} -> (${x}, ${y})`, json: { id, x, y } }
 }
 
 async function link(ctx: CommandContext): Promise<CommandResult> {
@@ -218,6 +234,8 @@ export async function runCommand(command: string, ctx: CommandContext): Promise<
       return setFields(ctx)
     case 'set-status':
       return setStatus(ctx)
+    case 'set-position':
+      return setPosition(ctx)
     case 'link':
       return link(ctx)
     case 'unlink':

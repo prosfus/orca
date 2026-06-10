@@ -25,6 +25,7 @@ import { tabGroupBodyAnchorName } from './tab-group-body-anchor'
 import { translate } from '@/i18n/i18n'
 
 const EditorPanel = lazy(() => import('../editor/EditorPanel'))
+const CanvasPanel = lazy(() => import('../canvas/CanvasPanel'))
 
 export default function TabGroupPanel({
   groupId,
@@ -122,6 +123,7 @@ export default function TabGroupPanel({
       onNewSimulatorTab={commands.newSimulatorTab}
       onOpenEntry={commands.openEntry}
       onNewFileTab={commands.newFileTab}
+      onNewCanvasTab={commands.newCanvasTab}
       onSetCustomTitle={commands.setTabCustomTitle}
       onSetTabColor={commands.setTabColor}
       onTogglePaneExpand={commands.toggleTerminalPaneExpand}
@@ -136,6 +138,7 @@ export default function TabGroupPanel({
       }
       activeBrowserTabId={activeTab?.contentType === 'browser' ? activeTab.entityId : null}
       activeSimulatorTabId={activeTab?.contentType === 'simulator' ? activeTab.id : null}
+      activeCanvasTabId={activeTab?.contentType === 'canvas' ? activeTab.id : null}
       activeTabType={
         activeTab?.contentType === 'terminal'
           ? 'terminal'
@@ -272,8 +275,14 @@ export default function TabGroupPanel({
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    aria-label={translate("auto.components.tab.group.TabGroupPanel.9acaf92093", "Pane Actions")}
-                    title={translate("auto.components.tab.group.TabGroupPanel.9acaf92093", "Pane Actions")}
+                    aria-label={translate(
+                      'auto.components.tab.group.TabGroupPanel.9acaf92093',
+                      'Pane Actions'
+                    )}
+                    title={translate(
+                      'auto.components.tab.group.TabGroupPanel.9acaf92093',
+                      'Pane Actions'
+                    )}
                     onClick={(event) => {
                       event.stopPropagation()
                     }}
@@ -289,28 +298,32 @@ export default function TabGroupPanel({
                     }}
                   >
                     <Columns2 className="size-4" />
-                    {translate("auto.components.tab.group.TabGroupPanel.ab1e2bff04", "Split Right")}</DropdownMenuItem>
+                    {translate('auto.components.tab.group.TabGroupPanel.ab1e2bff04', 'Split Right')}
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       commands.createSplitGroup('down')
                     }}
                   >
                     <Rows2 className="size-4" />
-                    {translate("auto.components.tab.group.TabGroupPanel.4df2a06d36", "Split Down")}</DropdownMenuItem>
+                    {translate('auto.components.tab.group.TabGroupPanel.4df2a06d36', 'Split Down')}
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       commands.createSplitGroup('left')
                     }}
                   >
                     <Columns2 className="size-4" />
-                    {translate("auto.components.tab.group.TabGroupPanel.30137df7d0", "Split Left")}</DropdownMenuItem>
+                    {translate('auto.components.tab.group.TabGroupPanel.30137df7d0', 'Split Left')}
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       commands.createSplitGroup('up')
                     }}
                   >
                     <Rows2 className="size-4" />
-                    {translate("auto.components.tab.group.TabGroupPanel.0db2081805", "Split Up")}</DropdownMenuItem>
+                    {translate('auto.components.tab.group.TabGroupPanel.0db2081805', 'Split Up')}
+                  </DropdownMenuItem>
                   {hasSplitGroups ? (
                     <>
                       <DropdownMenuSeparator />
@@ -321,7 +334,11 @@ export default function TabGroupPanel({
                         }}
                       >
                         <X className="size-4" />
-                        {translate("auto.components.tab.group.TabGroupPanel.f7d6ce445e", "Close Group")}</DropdownMenuItem>
+                        {translate(
+                          'auto.components.tab.group.TabGroupPanel.f7d6ce445e',
+                          'Close Group'
+                        )}
+                      </DropdownMenuItem>
                     </>
                   ) : null}
                 </DropdownMenuContent>
@@ -366,22 +383,41 @@ export default function TabGroupPanel({
         ) : null}
         {activeDropZone ? <TabGroupDropOverlay zone={activeDropZone} /> : null}
         {activeTab &&
-          activeTab.contentType !== "terminal" &&
-          activeTab.contentType !== "browser" &&
-          activeTab.contentType !== "simulator" && (
+          activeTab.contentType !== 'terminal' &&
+          activeTab.contentType !== 'browser' &&
+          activeTab.contentType !== 'simulator' &&
+          activeTab.contentType !== 'canvas' && (
             <div className="absolute inset-0 flex min-h-0 min-w-0">
               {/* Why: split groups render editor content inside a plain relative pane body
                   instead of the legacy flex column in Terminal.tsx. */}
               <Suspense
                 fallback={
                   <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-                    {translate("auto.components.tab.group.TabGroupPanel.814fb04c43", "Loading editor...")}</div>
+                    {translate(
+                      'auto.components.tab.group.TabGroupPanel.814fb04c43',
+                      'Loading editor...'
+                    )}
+                  </div>
                 }
               >
                 <EditorPanel activeFileId={activeTab.entityId} activeViewStateId={activeTab.id} />
               </Suspense>
             </div>
           )}
+
+        {activeTab?.contentType === 'canvas' && (
+          <div className="absolute inset-0 flex min-h-0 min-w-0">
+            <Suspense
+              fallback={
+                <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                  Loading canvas...
+                </div>
+              }
+            >
+              <CanvasPanel worktreeId={activeTab.worktreeId} />
+            </Suspense>
+          </div>
+        )}
 
         {/* Why: terminal/browser/simulator panes are rendered at the worktree level by
             overlay layers and absolutely positioned over this body element

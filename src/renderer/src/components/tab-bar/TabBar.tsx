@@ -5,7 +5,7 @@
  * more clarity than the ~5 lines of bloat is worth. */
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { SortableContext } from '@dnd-kit/sortable'
-import { FilePlus, FileText, Globe, Plus, Smartphone, TerminalSquare } from 'lucide-react'
+import { FilePlus, FileText, Globe, Plus, Smartphone, TerminalSquare, Workflow } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
   BrowserTab as BrowserTabState,
@@ -85,6 +85,7 @@ type TabBarProps = {
   terminalOnly?: boolean
   showAgentLaunchItems?: boolean
   onNewFileTab?: () => void
+  onNewCanvasTab?: () => void
   onOpenFileTab?: () => void
   newTabMenuOrder?: 'default' | 'markdown-first'
   onSetCustomTitle: (tabId: string, title: string | null) => void
@@ -95,6 +96,7 @@ type TabBarProps = {
   activeFileId?: string | null
   activeBrowserTabId?: string | null
   activeSimulatorTabId?: string | null
+  activeCanvasTabId?: string | null
   activeTabType?: WorkspaceVisibleTabType
   onActivateFile?: (fileId: string) => void
   onCloseFile?: (fileId: string) => void
@@ -143,6 +145,13 @@ type TabItem =
       isPinned: boolean
       data: Tab
     }
+  | {
+      type: 'canvas'
+      id: string
+      unifiedTabId: string
+      isPinned: boolean
+      data: Tab
+    }
 
 function getTabDragLabel(item: TabItem, generatedTitlesEnabled: boolean): string {
   if (item.type === 'terminal') {
@@ -153,6 +162,9 @@ function getTabDragLabel(item: TabItem, generatedTitlesEnabled: boolean): string
   }
   if (item.type === 'simulator') {
     return item.data.label || 'Mobile Emulator'
+  }
+  if (item.type === 'canvas') {
+    return item.data.label || 'Canvas'
   }
   return getEditorDisplayLabel(item.data)
 }
@@ -189,6 +201,7 @@ function TabBarInner({
   terminalOnly = false,
   showAgentLaunchItems = true,
   onNewFileTab,
+  onNewCanvasTab,
   onOpenFileTab,
   newTabMenuOrder = 'default',
   onSetCustomTitle,
@@ -199,6 +212,7 @@ function TabBarInner({
   activeFileId,
   activeBrowserTabId,
   activeSimulatorTabId,
+  activeCanvasTabId,
   activeTabType,
   onActivateFile,
   onCloseFile,
@@ -625,6 +639,16 @@ function TabBarInner({
         {translate('auto.components.tab.bar.TabBar.4f327c8b3d', 'Open Markdown...')}
       </DropdownMenuItem>
     ) : null
+  const newCanvasMenuItem =
+    !terminalOnly && onNewCanvasTab ? (
+      <DropdownMenuItem
+        onSelect={onNewCanvasTab}
+        className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+      >
+        <Workflow className="size-4 text-muted-foreground" />
+        New Canvas
+      </DropdownMenuItem>
+    ) : null
   const standardCreateMenuItems =
     newTabMenuOrder === 'markdown-first' ? (
       <>
@@ -632,6 +656,7 @@ function TabBarInner({
         {openMarkdownMenuItem}
         {defaultTerminalMenuItems}
         {newBrowserMenuItem}
+        {newCanvasMenuItem}
         {newSimulatorMenuItem}
       </>
     ) : (
@@ -640,6 +665,7 @@ function TabBarInner({
         {newBrowserMenuItem}
         {newMarkdownMenuItem}
         {openMarkdownMenuItem}
+        {newCanvasMenuItem}
         {newSimulatorMenuItem}
       </>
     )
@@ -681,6 +707,13 @@ function TabBarInner({
         .map((t) => t.id),
     [unifiedTabs, resolvedGroupId]
   )
+  const canvasTabIds = useMemo(
+    () =>
+      (unifiedTabs ?? [])
+        .filter((t) => t.groupId === resolvedGroupId && t.contentType === 'canvas')
+        .map((t) => t.id),
+    [unifiedTabs, resolvedGroupId]
+  )
 
   // Build the unified ordered list, reconciling stored order with current items
   const orderedItems = useMemo(() => {
@@ -689,7 +722,8 @@ function TabBarInner({
       terminalIds,
       editorFileIds,
       browserTabIds,
-      simulatorTabIds
+      simulatorTabIds,
+      canvasTabIds
     )
     const items: TabItem[] = []
     for (const id of ids) {
@@ -740,6 +774,17 @@ function TabBarInner({
         })
         continue
       }
+      const canvasUnified = unifiedTabByVisibleId.get(id)
+      if (canvasUnified && canvasUnified.contentType === 'canvas') {
+        items.push({
+          type: 'canvas',
+          id,
+          unifiedTabId: canvasUnified.id,
+          isPinned: canvasUnified.isPinned === true,
+          data: canvasUnified
+        })
+        continue
+      }
     }
     return items
   }, [
@@ -748,6 +793,7 @@ function TabBarInner({
     editorFileIds,
     browserTabIds,
     simulatorTabIds,
+    canvasTabIds,
     terminalMap,
     editorMap,
     browserMap,
@@ -1015,6 +1061,41 @@ function TabBarInner({
                   dragData={dragData}
                   dropIndicator={dropIndicatorByVisibleId.get(item.id) ?? null}
                   includeTopTabBorder={includeTopTabBorder}
+                />
+              )
+            }
+            if (item.type === 'canvas') {
+              const canvasLabel = item.data.label || 'Canvas'
+              const canvasFile: OpenFile & { tabId: string } = {
+                id: item.id,
+                tabId: item.id,
+                filePath: canvasLabel,
+                relativePath: canvasLabel,
+                worktreeId,
+                language: 'canvas',
+                isPreview: false,
+                isDirty: false,
+                mode: 'edit'
+              }
+              return (
+                <EditorFileTab
+                  key={item.id}
+                  file={canvasFile}
+                  isActive={item.id === activeCanvasTabId}
+                  isPinned={item.isPinned}
+                  hasTabsToRight={index < orderedItems.length - 1}
+                  statusByRelativePath={statusByRelativePath}
+                  onActivate={() => onActivateFile?.(item.id)}
+                  onClose={() => onCloseFile?.(item.id)}
+                  onCloseToRight={() => onCloseToRight(item.id)}
+                  onCloseAll={() => onCloseAllFiles?.()}
+                  onMakePermanent={() => {}}
+                  onTogglePin={() => togglePinned(item)}
+                  onSplitGroup={(direction, sourceVisibleTabId) =>
+                    onCreateSplitGroup?.(direction, sourceVisibleTabId)
+                  }
+                  dragData={dragData}
+                  dropIndicator={dropIndicatorByVisibleId.get(item.id) ?? null}
                 />
               )
             }

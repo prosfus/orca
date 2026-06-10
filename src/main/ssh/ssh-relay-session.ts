@@ -644,6 +644,18 @@ export class SshRelaySession {
     }
   }
 
+  // Runs the remote `orca-canvas` CLI (installed in the relay bin dir) for one editor mutation,
+  // so the write happens on the remote host under its own lock. Returns the CLI's stdout.
+  async runRemoteCanvasCli(argv: string[]): Promise<string> {
+    if (!this.remoteCliBridgeEnv) {
+      throw new Error('Remote canvas CLI is unavailable (relay bridge not ready)')
+    }
+    const command = [`${this.remoteCliBridgeEnv.binDir}/orca-canvas`, ...argv]
+      .map(quoteSh)
+      .join(' ')
+    return execCommand(this.requireReadyConnection(), command)
+  }
+
   // Ships the standalone canvas CLI to the remote bin dir (which is already on the agent PATH),
   // so remote agents can run `orca-canvas`. Mirrors installRemoteOrcaCliShim's write pattern.
   private async installRemoteCanvasCli(): Promise<void> {

@@ -76,6 +76,23 @@ if (patchedNodePtyRebuildReason) {
     console.log(probe.stderr.trim())
   }
 } else {
+  // Why: a native (non-cross) host without a C/C++ toolchain cannot run a
+  // forced node-gyp rebuild, yet the shipped prebuilds may already load in
+  // Electron. Opt-in via ORCA_SKIP_NATIVE_REBUILD_IF_LOADS=1: probe first and
+  // skip the redundant rebuild when the modules already load. Default behavior
+  // (and all cross-compile/release paths) is unchanged.
+  const isNativeTarget = rebuildPlatform === osPlatform() && rebuildArch === process.arch
+  if (process.env.ORCA_SKIP_NATIVE_REBUILD_IF_LOADS === '1' && isNativeTarget) {
+    const probe = probeElectronNativeModules(onlyModules)
+    if (probe.ok) {
+      console.log('[rebuild] Native modules already load in Electron; skipping forced rebuild.')
+      process.exit(0)
+    }
+    console.log('[rebuild] Native modules do not load in Electron; proceeding with forced rebuild.')
+    if (probe.stderr.trim()) {
+      console.log(probe.stderr.trim())
+    }
+  }
   console.log(`[rebuild] Forcing native rebuild for ${rebuildPlatform}-${rebuildArch}.`)
 }
 

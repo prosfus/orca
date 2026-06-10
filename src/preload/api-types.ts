@@ -9,6 +9,8 @@ import type {
 } from '../shared/hosted-review'
 import type { NativeFileDropPayload } from '../shared/native-file-drop'
 import type { AppIdentity } from '../shared/app-identity'
+import type { CanvasMutation } from '../shared/canvas/canvas-mutation'
+import type { CanvasReadResult } from '../shared/canvas/canvas-plan-view'
 import type { TerminalPaneSplitSource } from '../shared/feature-education-telemetry'
 import type {
   BaseRefDefaultResult,
@@ -1826,6 +1828,10 @@ export type PreloadApi = {
   claudeUsage: ClaudeUsageApi
   codexUsage: CodexUsageApi
   openCodeUsage: OpenCodeUsageApi
+  canvas: {
+    read: (args: { worktreeId: string }) => Promise<CanvasReadResult>
+    mutate: (args: { worktreeId: string; mutation: CanvasMutation }) => Promise<CanvasReadResult>
+  }
   fs: {
     readDir: (args: { dirPath: string; connectionId?: string }) => Promise<DirEntry[]>
     readFile: (args: {
