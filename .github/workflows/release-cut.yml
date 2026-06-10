@@ -57,11 +57,10 @@ concurrency:
 
 jobs:
   cut:
-    # Why: this job bumps package.json and fast-forwards main. On a fork with
-    # Actions enabled, the scheduled cut would run against the fork's main and
-    # diverge it (version line) every slot, conflicting every PR back upstream.
-    # Gate to the canonical repo so the workflow no-ops on forks.
-    if: github.repository == 'stablyai/orca'
+    # Why: this job bumps package.json and fast-forwards main. Gated to this
+    # personal fork so releases (with the local canvas work) publish here and
+    # the app's updater feed — repointed to prosfus/orca — finds them.
+    if: github.repository == 'prosfus/orca'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:

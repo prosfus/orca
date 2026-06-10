@@ -291,7 +291,7 @@ module.exports = {
   npmRebuild: true,
   publish: {
     provider: 'github',
-    owner: 'stablyai',
+    owner: 'prosfus',
     repo: 'orca',
     releaseType: 'release'
   }
