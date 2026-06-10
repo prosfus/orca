@@ -21,6 +21,7 @@ import { SshGitProvider } from '../providers/ssh-git-provider'
 import { agentHookServer } from '../agent-hooks/server'
 import { installRemoteManagedAgentHooks } from '../agent-hooks/remote-managed-hook-installers'
 import { readCanvasCliBundle } from '../canvas/canvas-cli-installer'
+import { installRemoteCanvasGuide } from '../canvas/canvas-guide-agent-targets'
 import { isAgentStatusHooksEnabled } from '../agent-hooks/managed-agent-hook-controls'
 import {
   AGENT_HOOK_INSTALL_PLUGINS_METHOD,
@@ -528,6 +529,9 @@ export class SshRelaySession {
         }`
       )
     }
+    // Best-effort: teach remote agents about `orca-canvas` via their global memory
+    // files. Handles its own errors; never breaks the session.
+    await this.installCanvasGuideOnRemote(mux)
     if (shouldContinue && !shouldContinue()) {
       return false
     }
@@ -678,6 +682,44 @@ export class SshRelaySession {
     await this.writeRemoteTextFile(conn, bundlePath, bundle)
     await this.writeRemoteTextFile(conn, wrapperPath, wrapper)
     await execCommand(conn, `chmod 755 ${shellEscape(wrapperPath)}`)
+  }
+
+  // Writes the Canvas guide block into each agent's global memory file on the
+  // remote, mirroring the local install. Independent of the agent-status-hooks
+  // toggle (like the canvas CLI). POSIX-only; Windows remotes are skipped. Handles
+  // its own errors so a failure never breaks the SSH session.
+  private async installCanvasGuideOnRemote(mux: SshChannelMultiplexer): Promise<void> {
+    if (
+      this.remoteCliBridgeEnv?.hostPlatform &&
+      isWindowsRemoteHost(this.remoteCliBridgeEnv.hostPlatform)
+    ) {
+      return
+    }
+    let remoteHome: string
+    try {
+      const result = (await mux.request('session.resolveHome', { path: '~' })) as {
+        resolvedPath?: unknown
+      }
+      if (typeof result.resolvedPath !== 'string' || result.resolvedPath.length === 0) {
+        return
+      }
+      remoteHome = result.resolvedPath
+    } catch {
+      return
+    }
+    let sftp: Awaited<ReturnType<SshConnection['sftp']>> | null = null
+    try {
+      sftp = await this.requireReadyConnection().sftp()
+      await installRemoteCanvasGuide(sftp, remoteHome)
+    } catch (error) {
+      console.warn(
+        `[ssh-relay-session] remote Canvas guide install failed for ${this.targetId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    } finally {
+      ;(sftp as { end?: () => void } | null)?.end?.()
+    }
   }
 
   private async writeRemoteTextFile(

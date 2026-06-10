@@ -16,7 +16,11 @@ export function canvasCliWrapperContent(bundlePath: string, platform: NodeJS.Pla
   return platform === 'win32' ? windowsWrapperContent(bundlePath) : posixWrapperContent(bundlePath)
 }
 
+// Why: name the POSIX launcher `orca-canvas` (no extension) so a single
+// `orca-canvas` invocation resolves on PATH locally and remotely (the remote
+// bin is also `orca-canvas`). Windows keeps `.cmd` — invocable as `orca-canvas`
+// via PATHEXT.
 export function canvasCliBinPath(home: string, platform: NodeJS.Platform): string {
-  const name = platform === 'win32' ? 'orca-canvas.cmd' : 'orca-canvas.sh'
+  const name = platform === 'win32' ? 'orca-canvas.cmd' : 'orca-canvas'
   return path.join(home, '.orca', 'canvas', name)
 }

@@ -3,7 +3,7 @@ main-process module so spawn-time environment scoping, lifecycle cleanup,
 foreground-process inspection, and renderer IPC stay behind a single audited
 boundary. Splitting it by line count would scatter tightly coupled terminal
 process behavior across files without a cleaner ownership seam. */
-import { join, delimiter } from 'path'
+import { join, delimiter, dirname } from 'path'
 import { randomUUID } from 'crypto'
 import { type BrowserWindow, type WebContents, ipcMain, app } from 'electron'
 export { getBashShellReadyRcfileContent } from '../providers/local-pty-shell-ready'
@@ -324,6 +324,23 @@ export type BuildPtyHostEnvOptions = {
 
 function readInheritedPath(baseEnv: Record<string, string>): string {
   return baseEnv.PATH ?? baseEnv.Path ?? process.env.PATH ?? process.env.Path ?? ''
+}
+
+// Why: the agent Canvas guide uses a single `orca-canvas` invocation for both
+// local and remote panes. Remotes already have the launcher on PATH, but the
+// local launcher dir (~/.orca/canvas) isn't — so prepend it for local Canvas
+// panes. ORCA_CANVAS_BIN is set only on local panes that have a Canvas, so its
+// presence is the gate; no-op everywhere else.
+export function prependCanvasBinToPath(baseEnv: Record<string, string>): void {
+  const bin = baseEnv.ORCA_CANVAS_BIN
+  if (!bin) {
+    return
+  }
+  const binDir = dirname(bin)
+  const inheritedPath = readInheritedPath(baseEnv)
+  // Why: avoid a trailing delimiter when PATH is empty (an empty segment lets
+  // commands resolve from the cwd) — same guard as the dev CLI prepend below.
+  baseEnv.PATH = inheritedPath ? `${binDir}${delimiter}${inheritedPath}` : binDir
 }
 
 function firstPathEntry(pathValue: string | undefined): string | null {
@@ -731,6 +748,10 @@ export function buildPtyHostEnv(
     // for dev terminals).
     baseEnv.PATH = inheritedPath ? `${devCliBin}${delimiter}${inheritedPath}` : devCliBin
   }
+
+  // Why: put the local `orca-canvas` launcher on PATH so the Canvas guide's
+  // single invocation works locally exactly as it does on remotes.
+  prependCanvasBinToPath(baseEnv)
 
   // Why: GitHub attribution should only affect commands launched from
   // Orca's own PTYs. Injecting lightweight PATH shims at spawn-time keeps

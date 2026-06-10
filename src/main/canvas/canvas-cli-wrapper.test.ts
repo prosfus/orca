@@ -17,7 +17,7 @@ describe('canvasCliWrapperContent', () => {
 describe('canvasCliBinPath', () => {
   it('uses a platform-appropriate launcher name under ~/.orca/canvas', () => {
     expect(canvasCliBinPath('/home/dev', 'linux').replace(/\\/g, '/')).toBe(
-      '/home/dev/.orca/canvas/orca-canvas.sh'
+      '/home/dev/.orca/canvas/orca-canvas'
     )
     expect(canvasCliBinPath('C:\\Users\\Pau', 'win32').replace(/\\/g, '/')).toBe(
       'C:/Users/Pau/.orca/canvas/orca-canvas.cmd'

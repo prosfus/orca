@@ -218,49 +218,38 @@ function writeScriptWithAclRetry(scriptPath: string, content: string): void {
   }
 }
 
-export function writeHooksJson(configPath: string, config: HooksConfig): void {
-  const dir = dirname(configPath)
+// Why: atomic write-with-backup for a config file the user may have hand-edited
+// (managed hooks JSON, the Canvas guide markdown). Skips the write — and the
+// .bak rotation — when the on-disk content already matches, so repeated installs
+// (e.g. on every app start) don't roll the single backup forward and silently
+// destroy the last recoverable copy. temp+rename keeps a crash/disk-full from
+// tearing the file; randomUUID makes the tmp path unique so two same-millisecond
+// installs to the same dir can't corrupt each other. ACL retry covers Windows.
+export function writeTextFileAtomicWithBackup(filePath: string, content: string): void {
+  const dir = dirname(filePath)
   mkdirSync(dir, { recursive: true })
 
-  // Why: write to a temp file then rename so a crash or disk-full mid-write
-  // leaves the original untouched. This is the only safe way to update a
-  // config file the user may have hand-edited.
-  //
-  // Why randomUUID: Date.now() alone collides when two install() calls fire in
-  // the same millisecond targeting the same dir (e.g. a future caller that
-  // installs multiple agents sharing a config dir, or rapid reinstalls from
-  // the settings UI). A collision would corrupt one of the two writes. The
-  // UUID suffix makes the tmp path unique per call.
-  const tmpPath = join(dir, `.${Date.now()}-${randomUUID()}.tmp`)
-  const serialized = `${JSON.stringify(config, null, 2)}\n`
-
-  // Why: skip the write (and therefore the .bak rotation) when the on-disk
-  // content is already identical. Without this, every install() rewrites the
-  // file and rolls the backup forward, which can silently destroy the last
-  // recoverable copy if install() is called repeatedly (e.g. on app start).
-  if (existsSync(configPath)) {
+  if (existsSync(filePath)) {
     try {
-      if (readFileSync(configPath, 'utf-8') === serialized) {
+      if (readFileSync(filePath, 'utf-8') === content) {
         return
       }
     } catch {
-      // Fall through to the normal write path — a read error here is not
-      // worth failing the install for; the atomic write below will either
-      // succeed or throw loudly.
+      // Fall through to the write path — a read error isn't worth failing the
+      // install for; the atomic write below either succeeds or throws loudly.
     }
   }
 
+  const tmpPath = join(dir, `.${Date.now()}-${randomUUID()}.tmp`)
   try {
-    writeFileSync(tmpPath, serialized, 'utf-8')
-    // Why: single rolling backup — one file, no accumulation in ~/.claude.
-    // Protects against a merge-logic bug producing bad JSON; the original is
-    // always recoverable from <configPath>.bak until the next write.
-    if (existsSync(configPath)) {
-      copyFileSync(configPath, `${configPath}.bak`)
+    writeScriptWithAclRetry(tmpPath, content)
+    // Why: single rolling backup — one file, no accumulation. The original is
+    // recoverable from <filePath>.bak until the next write.
+    if (existsSync(filePath)) {
+      copyFileSync(filePath, `${filePath}.bak`)
     }
-    renameSync(tmpPath, configPath)
+    renameSync(tmpPath, filePath)
   } finally {
-    // Clean up temp file if rename failed.
     if (existsSync(tmpPath)) {
       try {
         unlinkSync(tmpPath)
@@ -269,4 +258,8 @@ export function writeHooksJson(configPath: string, config: HooksConfig): void {
       }
     }
   }
+}
+
+export function writeHooksJson(configPath: string, config: HooksConfig): void {
+  writeTextFileAtomicWithBackup(configPath, `${JSON.stringify(config, null, 2)}\n`)
 }

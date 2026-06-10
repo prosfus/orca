@@ -11,7 +11,7 @@ describe('canvasPaneEnv', () => {
   it('adds ORCA_CANVAS_BIN for a local pane', () => {
     const env = canvasPaneEnv({ path: '/home/dev/proj', instanceId: 'abc' }, { local: true })
     expect(env.ORCA_CANVAS_PATH).toBe('/home/dev/proj/.orca/abc.canvas')
-    expect(env.ORCA_CANVAS_BIN).toMatch(/orca-canvas\.(sh|cmd)$/)
+    expect(env.ORCA_CANVAS_BIN).toMatch(/orca-canvas(\.cmd)?$/)
   })
 
   it('injects nothing when the workspace has no instanceId', () => {

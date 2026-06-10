@@ -158,7 +158,8 @@ import {
   setPtyOwnership,
   setLocalPtyProvider,
   rebindLocalProviderListeners,
-  unregisterSshPtyProvider
+  unregisterSshPtyProvider,
+  prependCanvasBinToPath
 } from './pty'
 import { hasLiveClaudePtys, markClaudePtySpawned } from '../claude-accounts/live-pty-gate'
 import {
@@ -5748,5 +5749,28 @@ describe('registerPtyHandlers', () => {
         source: 'headless'
       })
     })
+  })
+})
+
+describe('prependCanvasBinToPath', () => {
+  const binDir = join('/home/dev', '.orca', 'canvas')
+  const bin = join(binDir, 'orca-canvas')
+
+  it('prepends the local canvas bin dir to PATH when ORCA_CANVAS_BIN is set', () => {
+    const env: Record<string, string> = { ORCA_CANVAS_BIN: bin, PATH: `/usr/bin${delimiter}/bin` }
+    prependCanvasBinToPath(env)
+    expect(env.PATH).toBe(`${binDir}${delimiter}/usr/bin${delimiter}/bin`)
+  })
+
+  it('avoids a trailing delimiter when PATH is empty', () => {
+    const env: Record<string, string> = { ORCA_CANVAS_BIN: bin, PATH: '' }
+    prependCanvasBinToPath(env)
+    expect(env.PATH).toBe(binDir)
+  })
+
+  it('is a no-op when ORCA_CANVAS_BIN is absent', () => {
+    const env: Record<string, string> = { PATH: '/usr/bin' }
+    prependCanvasBinToPath(env)
+    expect(env.PATH).toBe('/usr/bin')
   })
 })

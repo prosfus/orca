@@ -30,6 +30,7 @@ import {
   removeManagedAgentHooks
 } from './agent-hooks/managed-agent-hook-controls'
 import { installCanvasCliLocal } from './canvas/canvas-cli-installer'
+import { installCanvasGuideLocal } from './canvas/canvas-guide-agent-targets'
 import { initCohortClassifier } from './telemetry/cohort-classifier'
 import { initOnboardingCohortClassifier } from './telemetry/onboarding-cohort-classifier'
 import { resolveConsent } from './telemetry/consent'
@@ -1274,6 +1275,14 @@ app.whenReady().then(async () => {
     installCanvasCliLocal()
   } catch (error) {
     console.warn('[canvas] Failed to install local canvas CLI launcher:', error)
+  }
+  // Why: teach every agent (in its global memory file) that the `orca-canvas` CLI
+  // exists and how/when to use it — without it the launcher is undiscoverable.
+  // Shares the launcher's lifecycle: not gated by the hooks toggle, best-effort.
+  try {
+    installCanvasGuideLocal()
+  } catch (error) {
+    console.warn('[canvas] Failed to install Canvas guide:', error)
   }
 
   app.on('child-process-gone', (_event, details) => {

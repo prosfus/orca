@@ -2,7 +2,7 @@
 // managed-script primitive (atomic write + exec bit) but is a SEPARATE install path: the canvas
 // CLI is not a status hook and must not be gated by the agent-status-hooks toggle.
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { app } from 'electron'
@@ -25,6 +25,15 @@ export function localCanvasCliBinPath(): string {
 export function installCanvasCliLocal(): string {
   const binPath = localCanvasCliBinPath()
   writeManagedScript(binPath, canvasCliWrapperContent(canvasCliBundlePath(), process.platform))
+  // Why: prior builds installed the POSIX launcher as `orca-canvas.sh`; drop the
+  // orphan after the rename so PATH resolution stays unambiguous.
+  if (process.platform !== 'win32') {
+    try {
+      rmSync(path.join(homedir(), '.orca', 'canvas', 'orca-canvas.sh'), { force: true })
+    } catch {
+      // best effort
+    }
+  }
   return binPath
 }
 
