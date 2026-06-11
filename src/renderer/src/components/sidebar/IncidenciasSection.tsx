@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react'
-import { Stethoscope, FileText, MoreHorizontal, SquarePlus, Copy, Trash2 } from 'lucide-react'
+import { Stethoscope, FileText, MoreHorizontal, SquarePlus, Copy, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Diagnostico } from '../../../../shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
+import { CLIENT_PLATFORM } from '@/lib/new-workspace'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -273,7 +275,7 @@ function IncidenciasSection(): React.JSX.Element | null {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="max-h-48 overflow-y-auto">
+      <div className="max-h-48 overflow-y-auto scrollbar-sleek">
         {diagnosticos.map((diagnostico) => (
           <IncidenciaRow
             key={diagnostico.id}
@@ -293,8 +295,27 @@ function IncidenciasSection(): React.JSX.Element | null {
           }
         }}
       >
-        <SheetContent side="right" className="flex w-full flex-col sm:max-w-[640px]">
-          <SheetHeader className="border-b border-border/60">
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          // Why: on Windows the OS window controls live in the top-right titlebar
+          // strip; inset the sheet content so its header/close don't sit under them.
+          className={cn(
+            'flex w-full flex-col sm:max-w-[640px]',
+            CLIENT_PLATFORM === 'win32' && 'pt-9'
+          )}
+        >
+          <SheetHeader className="relative border-b border-border/60">
+            <SheetClose asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="absolute top-2 right-2 px-1 text-muted-foreground hover:text-foreground"
+                aria-label="Cerrar"
+              >
+                <X className="size-4" />
+              </Button>
+            </SheetClose>
             <SheetTitle className="pr-8">
               #{openDiagnostico?.incidenciaNumero} {openDiagnostico?.incidenciaAsunto}
             </SheetTitle>
@@ -304,7 +325,7 @@ function IncidenciasSection(): React.JSX.Element | null {
                 : 'Informe de diagnóstico'}
             </SheetDescription>
           </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek p-4 text-sm">
             {openDiagnostico ? (
               <CommentMarkdown content={openDiagnostico.markdown} variant="document" />
             ) : null}
