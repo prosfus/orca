@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { launchAgentBackgroundSession } from '@/lib/launch-agent-background-session'
 import { useAppStore } from '@/store'
 
 // Why: trabeRepoPath (from settings) and repo.path can differ in slash style and
@@ -9,23 +10,32 @@ function normalizeRepoPath(value: string): string {
 
 /**
  * Renderer half of the diagnostic launch pipeline (docs/incidencia-diagnostics.md
- * §5). On each dispatch it creates an ephemeral worktree, runs the agent headless
- * in main (which streams output and harvests the report), removes the worktree,
- * and acks so main can free a queue slot.
+ * §5). Creates an ephemeral (Workspaces-hidden) worktree and runs the headless
+ * agent in a real Orca terminal there — reachable via "Ver agente" — then
+ * harvests the report on exit. The worktree is kept for inspection and removed
+ * when the diagnostic is discarded.
  */
 export function useDiagnosticoDispatch(): void {
   useEffect(() => {
     const unsubscribe = window.api.diagnosticos.onDispatchRequested(async (request) => {
-      const state = useAppStore.getState()
-      const targetRepoPath = normalizeRepoPath(request.repoPath)
-      const repo = state.repos.find((entry) => normalizeRepoPath(entry.path) === targetRepoPath)
-      if (!repo) {
-        await window.api.diagnosticos.update(request.diagnosticoId, {
-          status: 'failed',
-          error: 'El repo de Trabe no está registrado en Orca.',
-          finishedAt: Date.now()
-        })
+      const settle = (): void => {
         void window.api.diagnosticos.dispatchSettled(request.diagnosticoId)
+      }
+      const fail = (error: string, worktreeId?: string): void => {
+        void window.api.diagnosticos.update(request.diagnosticoId, {
+          status: 'failed',
+          error,
+          finishedAt: Date.now(),
+          ...(worktreeId ? { worktreeId } : {})
+        })
+      }
+
+      const state = useAppStore.getState()
+      const target = normalizeRepoPath(request.repoPath)
+      const repo = state.repos.find((entry) => normalizeRepoPath(entry.path) === target)
+      if (!repo) {
+        fail('El repo de Trabe no está registrado en Orca.')
+        settle()
         return
       }
 
@@ -39,44 +49,48 @@ export function useDiagnosticoDispatch(): void {
         )
         worktreeId = worktree.id
         await window.api.diagnosticos.update(request.diagnosticoId, { worktreeId: worktree.id })
-
-        // Hide the ephemeral worktree from Workspaces (origin 'incidencia') —
-        // persist it in main and stamp the live store so it never flashes in the list.
         await window.api.diagnosticos.adoptWorktree(worktree.id)
-        useAppStore.setState((s) => {
-          const existing = s.worktreeLineageById[worktree.id]
-          return existing
-            ? {
-                worktreeLineageById: {
-                  ...s.worktreeLineageById,
-                  [worktree.id]: { ...existing, origin: 'incidencia' }
-                }
-              }
-            : {}
-        })
 
-        // Run the agent headless in main: it reads code + DB (read-only), writes
-        // DIAGNOSTICO.md, and exits. Main streams output into the Diagnostico and
-        // harvests the report, setting status ready/failed before resolving.
-        await window.api.diagnosticos.runAgent({
-          diagnosticoId: request.diagnosticoId,
+        const prepared = await window.api.diagnosticos.prepareAgentRun({
           agentCli: request.agentCli,
           prompt: request.prompt,
           worktreePath: worktree.path,
           envFilePath: request.envFilePath
         })
-      } catch (error) {
-        await window.api.diagnosticos.update(request.diagnosticoId, {
-          status: 'failed',
-          error: error instanceof Error ? error.message : String(error),
-          finishedAt: Date.now(),
-          ...(worktreeId ? { worktreeId } : {})
-        })
-      } finally {
-        if (worktreeId) {
-          await state.removeWorktree(worktreeId, true)
+        if (!prepared) {
+          fail('No se pudo preparar el agente de diagnóstico.', worktree.id)
+          settle()
+          return
         }
-        void window.api.diagnosticos.dispatchSettled(request.diagnosticoId)
+
+        let settled = false
+        const launched = await launchAgentBackgroundSession({
+          agent: request.agentCli,
+          worktreeId: worktree.id,
+          commandOverride: prepared.command,
+          launchSource: 'unknown',
+          title: `Incidencia #${request.incidencia.numero}`,
+          onExit: (_ptyId, code) => {
+            if (settled) {
+              return
+            }
+            settled = true
+            void window.api.diagnosticos
+              .harvest({
+                diagnosticoId: request.diagnosticoId,
+                worktreePath: worktree.path,
+                exitCode: code
+              })
+              .finally(settle)
+          }
+        })
+        if (!launched) {
+          fail('No se pudo lanzar el agente de diagnóstico.', worktree.id)
+          settle()
+        }
+      } catch (error) {
+        fail(error instanceof Error ? error.message : String(error), worktreeId ?? undefined)
+        settle()
       }
     })
     void window.api.diagnosticos.rendererReady()

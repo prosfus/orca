@@ -2489,14 +2489,19 @@ export type PreloadApi = {
     onDispatchRequested: (callback: (request: DiagnosticoDispatchRequest) => void) => () => void
     rendererReady: () => Promise<void>
     dispatchSettled: (diagnosticoId: string) => Promise<void>
-    /** Run the diagnostic agent headlessly; resolves when it exits and the
-     *  report has been harvested into the Diagnostico. */
-    runAgent: (args: {
-      diagnosticoId: string
+    /** Write the prompt + wrapper script into the worktree and return the
+     *  command to run the headless agent in an Orca terminal. */
+    prepareAgentRun: (args: {
       agentCli: Diagnostico['agentCli']
       prompt: string
       worktreePath: string
       envFilePath: string
+    }) => Promise<{ command: string } | null>
+    /** Harvest the report after the agent terminal exits. */
+    harvest: (args: {
+      diagnosticoId: string
+      worktreePath: string
+      exitCode: number
     }) => Promise<void>
   }
   wsl: {

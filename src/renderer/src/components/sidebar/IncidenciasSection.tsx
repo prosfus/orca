@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { Stethoscope, FileText, MoreHorizontal, SquarePlus, Copy, Trash2, X } from 'lucide-react'
+import {
+  Stethoscope,
+  FileText,
+  MoreHorizontal,
+  SquarePlus,
+  SquareTerminal,
+  Copy,
+  Trash2,
+  X
+} from 'lucide-react'
 import { toast } from 'sonner'
 import type { Diagnostico } from '../../../../shared/types'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import CommentMarkdown from './CommentMarkdown'
 import { useAppStore } from '@/store'
+import { activateWorktreeFromSidebar } from '@/lib/sidebar-worktree-activation'
 import { cn } from '@/lib/utils'
 
 // Why: mirrors the WorktreeCardMetadataStatusBadges tone recipe so diagnostic
@@ -78,22 +88,33 @@ function buildWorkspaceSeed(diagnostico: Diagnostico): string {
 function IncidenciaRow({
   diagnostico,
   onView,
+  onOpenAgent,
   onCreateWorkspace,
   onDiscard
 }: {
   diagnostico: Diagnostico
   onView: (diagnostico: Diagnostico) => void
+  onOpenAgent: (worktreeId: string) => void
   onCreateWorkspace: (diagnostico: Diagnostico) => void
   onDiscard: (diagnostico: Diagnostico) => void
 }): React.JSX.Element {
   const status = STATUS_META[diagnostico.status]
   const canView = diagnostico.markdown.length > 0
+  // While investigating, the worktree's terminal is live — clicking opens it.
+  const liveWorktreeId = diagnostico.status === 'investigating' ? diagnostico.worktreeId : null
+  const handleRowClick = (): void => {
+    if (liveWorktreeId) {
+      onOpenAgent(liveWorktreeId)
+    } else if (canView) {
+      onView(diagnostico)
+    }
+  }
   return (
     <div className="group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 hover:bg-worktree-sidebar-accent">
       <button
         type="button"
-        disabled={!canView}
-        onClick={() => onView(diagnostico)}
+        disabled={!liveWorktreeId && !canView}
+        onClick={handleRowClick}
         className="min-w-0 flex-1 text-left enabled:hover:underline disabled:cursor-default"
       >
         <div className="truncate text-xs text-foreground">
@@ -120,9 +141,15 @@ function IncidenciaRow({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
+          {liveWorktreeId ? (
+            <DropdownMenuItem onSelect={() => onOpenAgent(liveWorktreeId)}>
+              <SquareTerminal className="size-3.5" />
+              Ver agente
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem disabled={!canView} onSelect={() => onView(diagnostico)}>
             <FileText className="size-3.5" />
-            {diagnostico.status === 'investigating' ? 'Ver progreso' : 'Ver informe'}
+            Ver informe
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!canView} onSelect={() => onCreateWorkspace(diagnostico)}>
             <SquarePlus className="size-3.5" />
@@ -188,6 +215,11 @@ function IncidenciasSection(): React.JSX.Element | null {
   }, [])
 
   const discard = (diagnostico: Diagnostico): void => {
+    // The diagnostic worktree is kept for inspection, so removing the record
+    // must also remove its (hidden) worktree.
+    if (diagnostico.worktreeId) {
+      void useAppStore.getState().removeWorktree(diagnostico.worktreeId, true)
+    }
     void window.api.diagnosticos.delete(diagnostico.id)
     setOpenDiagnostico((current) => (current?.id === diagnostico.id ? null : current))
   }
@@ -195,6 +227,9 @@ function IncidenciasSection(): React.JSX.Element | null {
   const clearCompleted = (): void => {
     for (const entry of diagnosticos) {
       if (entry.status !== 'investigating') {
+        if (entry.worktreeId) {
+          void useAppStore.getState().removeWorktree(entry.worktreeId, true)
+        }
         void window.api.diagnosticos.delete(entry.id)
       }
     }
@@ -281,6 +316,7 @@ function IncidenciasSection(): React.JSX.Element | null {
             key={diagnostico.id}
             diagnostico={diagnostico}
             onView={setOpenDiagnostico}
+            onOpenAgent={activateWorktreeFromSidebar}
             onCreateWorkspace={createWorkspace}
             onDiscard={discard}
           />
