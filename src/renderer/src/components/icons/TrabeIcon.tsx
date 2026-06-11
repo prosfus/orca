@@ -1,11 +1,14 @@
 export function TrabeIcon({ className }: { className?: string }): React.JSX.Element {
   return (
-    <svg viewBox="0 0 200 200" aria-hidden className={className} fill="currentColor">
-      {/* Why: flatten Trabe's logo (LiBuilding public/logo_trabe.svg) to its T
-      mark — full-width top bar + left-offset stem — so it matches Orca's
-      monochrome provider icons instead of rendering as a branded tile. */}
-      <rect x="0" y="54" width="200" height="29" rx="3" />
-      <rect x="54" y="83" width="30" height="110" rx="3" />
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden className={className}>
+      {/* Why: Trabe's product mark (LiBuilding public/logo.svg), recolored to
+      currentColor so it matches Orca's monochrome provider icons. */}
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M31.6335 15.2557C32.0241 15.6462 32.0241 16.2794 31.6335 16.6699L16.6698 31.6327C16.2793 32.0232 15.6462 32.0232 15.2557 31.6326L13.8132 30.1902C13.6257 30.0027 13.5204 29.7484 13.5204 29.4831V14.3563C13.5204 13.804 13.9681 13.3563 14.5204 13.3563H29.32C29.5852 13.3563 29.8396 13.4617 30.0271 13.6492L31.6335 15.2557ZM7.65024 13.3563C8.20252 13.3563 8.65024 13.804 8.65024 14.3563V22.613C8.65024 23.5039 7.5731 23.9501 6.94313 23.3201L0.292893 16.6699C-0.0976308 16.2794 -0.0976314 15.6462 0.292893 15.2557L1.89934 13.6492C2.08687 13.4617 2.34123 13.3563 2.60645 13.3563H7.65024ZM23.3003 6.92263C23.9304 7.55258 23.4842 8.62977 22.5933 8.62977H9.33301C8.4421 8.62977 7.99594 7.55263 8.6259 6.92266L15.2557 0.292893C15.6462 -0.0976164 16.2793 -0.0976331 16.6698 0.292855L23.3003 6.92263Z"
+        fill="currentColor"
+      />
     </svg>
   )
 }
