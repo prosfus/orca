@@ -97,6 +97,7 @@ import type {
   LinearComment,
   LinearWorkflowState,
   LinearLabel,
+  Diagnostico,
   LinearMember,
   LinearProjectDetail,
   LinearProjectSummary,
@@ -2465,6 +2466,14 @@ export type PreloadApi = {
     snapshotWorkspaceName: (args: { workspaceId: string; displayName: string }) => Promise<number>
     rendererReady: () => Promise<void>
     onDispatchRequested: (callback: (request: AutomationDispatchRequest) => void) => () => void
+  }
+  diagnosticos: {
+    list: () => Promise<Diagnostico[]>
+    get: (id: string) => Promise<Diagnostico | null>
+    update: (id: string, patch: Partial<Omit<Diagnostico, 'id'>>) => Promise<Diagnostico | null>
+    delete: (id: string) => Promise<void>
+    /** Subscribe to 'diagnosticos:changed'; returns an unsubscribe function. */
+    onChanged: (callback: () => void) => () => void
   }
   wsl: {
     isAvailable: () => Promise<boolean>

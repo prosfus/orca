@@ -5,6 +5,7 @@ import { useSidebarResize } from '@/hooks/useSidebarResize'
 import SidebarHeader from './SidebarHeader'
 import SidebarNav from './SidebarNav'
 import SetupScriptPromptCard from './SetupScriptPromptCard'
+import IncidenciasSection from './IncidenciasSection'
 import WorktreeList from './WorktreeList'
 import SidebarToolbar from './SidebarToolbar'
 import type { VirtualizedScrollAnchor } from '@/hooks/useVirtualizedScrollAnchor'
@@ -111,6 +112,8 @@ function Sidebar({
               scrollOffsetRef={worktreeScrollOffsetRef}
               scrollAnchorRef={worktreeScrollAnchorRef}
             />
+
+            <IncidenciasSection />
 
             <SetupScriptPromptCard />
 

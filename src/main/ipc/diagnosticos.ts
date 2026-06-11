@@ -14,6 +14,14 @@ export function registerDiagnosticoHandlers(
     'diagnosticos:get',
     (_event, args: { id: string }): Diagnostico | null => store.getDiagnostico(args.id)
   )
+  ipcMain.handle(
+    'diagnosticos:update',
+    (_event, args: { id: string; patch: Partial<Omit<Diagnostico, 'id'>> }): Diagnostico | null => {
+      const updated = store.updateDiagnostico(args.id, args.patch)
+      notifyDiagnosticosChanged(mainWindow)
+      return updated
+    }
+  )
   ipcMain.handle('diagnosticos:delete', (_event, args: { id: string }): void => {
     store.deleteDiagnostico(args.id)
     notifyDiagnosticosChanged(mainWindow)
