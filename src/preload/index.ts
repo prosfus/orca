@@ -38,6 +38,7 @@ import type {
   NotificationSoundResult,
   NestedRepoScanResult,
   OnboardingState,
+  Diagnostico,
   FloatingTerminalCwdRequest,
   MarkdownDocument,
   SearchResult,
@@ -3531,6 +3532,20 @@ const api = {
         callback(request)
       ipcRenderer.on('automations:dispatchRequested', listener)
       return () => ipcRenderer.removeListener('automations:dispatchRequested', listener)
+    }
+  },
+
+  diagnosticos: {
+    list: (): Promise<Diagnostico[]> => ipcRenderer.invoke('diagnosticos:list'),
+    get: (id: string): Promise<Diagnostico | null> =>
+      ipcRenderer.invoke('diagnosticos:get', { id }),
+    update: (id: string, patch: Partial<Omit<Diagnostico, 'id'>>): Promise<Diagnostico | null> =>
+      ipcRenderer.invoke('diagnosticos:update', { id, patch }),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke('diagnosticos:delete', { id }),
+    onChanged: (callback: () => void): (() => void) => {
+      const listener = (): void => callback()
+      ipcRenderer.on('diagnosticos:changed', listener)
+      return () => ipcRenderer.removeListener('diagnosticos:changed', listener)
     }
   },
 
