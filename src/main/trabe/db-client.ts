@@ -9,12 +9,26 @@ export type TrabeDbClientOptions = { databaseUrl: string; deepLinkBase?: string 
 /** Fila de detección: TrabeIncidencia + el createdAt en ms para avanzar el cursor del watcher. */
 export type TrabeIncidenciaDetectionRow = TrabeIncidencia & { createdAtMs: number }
 
+/** Campos crudos para construir el prompt de diagnóstico (incluye descripción,
+ *  que NO se expone en TrabeIncidencia). Coincide con DiagnosticPromptInput. */
+export type TrabeIncidenciaDetail = {
+  numero: number
+  asunto: string
+  descripcion: string | null
+  moduloAfectado: string | null
+  errorSignature: string | null
+  proyectoNombre: string | null
+  clienteNombre: string | null
+}
+
 export type TrabeDbClient = {
   /** Detección: incidencias 'abierta' no borradas con createdAt > sinceCreatedAt (ms epoch). */
   listNewIncidencias(sinceCreatedAt: number): Promise<TrabeIncidenciaDetectionRow[]>
   /** Listado para la superficie de Tasks (lectura). */
   listIncidencias(opts?: { limit?: number }): Promise<TrabeIncidencia[]>
   getIncidencia(numero: number): Promise<TrabeIncidencia | null>
+  /** Detalle crudo (con descripción) para construir el prompt del agente. */
+  getIncidenciaDetail(numero: number): Promise<TrabeIncidenciaDetail | null>
   testConnection(): Promise<{ ok: boolean; error?: string }>
   close(): Promise<void>
 }
@@ -102,6 +116,38 @@ export function createTrabeDbClient(options: TrabeDbClientOptions): TrabeDbClien
       return row ? toIncidencia(row) : null
     },
 
+    async getIncidenciaDetail(numero) {
+      const res = await pool.query<{
+        numero: number
+        asunto: string
+        descripcion: string | null
+        moduloAfectado: string | null
+        errorSignature: string | null
+        proyectoNombre: string | null
+        clienteNombre: string | null
+      }>(
+        `SELECT numero, asunto, descripcion, "moduloAfectado", "errorSignature",
+                "proyectoNombre", "clienteNombre"
+         FROM "Incidencia"
+         WHERE numero = $1
+           AND "deletedAt" IS NULL
+         LIMIT 1`,
+        [numero]
+      )
+      const row = res.rows[0]
+      return row
+        ? {
+            numero: row.numero,
+            asunto: row.asunto,
+            descripcion: row.descripcion ?? null,
+            moduloAfectado: row.moduloAfectado ?? null,
+            errorSignature: row.errorSignature ?? null,
+            proyectoNombre: row.proyectoNombre ?? null,
+            clienteNombre: row.clienteNombre ?? null
+          }
+        : null
+    },
+
     async testConnection() {
       try {
         await pool.query('SELECT 1')
@@ -128,10 +174,16 @@ export function readDatabaseUrlFromEnvFile(envFilePath: string): string | null {
   }
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim()
-    if (!line || line.startsWith('#')) continue
+    if (!line || line.startsWith('#')) {
+      continue
+    }
     const eq = line.indexOf('=')
-    if (eq === -1) continue
-    if (line.slice(0, eq).trim() !== 'DATABASE_URL') continue
+    if (eq === -1) {
+      continue
+    }
+    if (line.slice(0, eq).trim() !== 'DATABASE_URL') {
+      continue
+    }
     let value = line.slice(eq + 1).trim()
     if (
       (value.startsWith('"') && value.endsWith('"')) ||

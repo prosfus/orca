@@ -16,6 +16,9 @@ export type DiagnosticoDispatchRequest = {
   diagnosticoId: string
   incidencia: TrabeIncidencia
   agentCli: TuiAgent
+  /** Prompt built in main (needs the incidencia's descripción + the read-only
+   *  rules); the renderer must not rebuild it. */
+  prompt: string
   /** Trabe repo path the ephemeral diagnostic worktree is created from. */
   repoPath: string
   baseBranch?: string

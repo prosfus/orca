@@ -1,6 +1,7 @@
 import { ipcMain, type WebContents } from 'electron'
 import type { Store } from '../persistence'
 import { createTrabeDbClient, readDatabaseUrlFromEnvFile } from './db-client'
+import { buildDiagnosticPrompt } from './diagnostic-prompt'
 import {
   DIAGNOSTICO_DISPATCH_REQUESTED,
   DIAGNOSTICO_DISPATCH_SETTLED,
@@ -109,6 +110,18 @@ export class IncidenciaWatcher {
           continue
         }
         this.seenIncidenciaIds.add(incidencia.id)
+        // Build the prompt in main: it needs the incidencia's descripción (not
+        // carried on TrabeIncidencia) and bakes in the read-only safety rules.
+        const detail = await client.getIncidenciaDetail(incidencia.numero)
+        const prompt = buildDiagnosticPrompt({
+          numero: incidencia.numero,
+          asunto: detail?.asunto ?? incidencia.title,
+          descripcion: detail?.descripcion ?? null,
+          moduloAfectado: detail?.moduloAfectado ?? null,
+          errorSignature: detail?.errorSignature ?? null,
+          proyectoNombre: detail?.proyectoNombre ?? incidencia.proyectoNombre,
+          clienteNombre: detail?.clienteNombre ?? incidencia.empresaNombre
+        })
         const diagnostico = this.store.createDiagnostico({
           incidenciaNumero: incidencia.numero,
           incidenciaAsunto: incidencia.title,
@@ -118,6 +131,7 @@ export class IncidenciaWatcher {
           diagnosticoId: diagnostico.id,
           incidencia,
           agentCli,
+          prompt,
           repoPath: config.repoPath,
           baseBranch: settings.trabeBaseBranch,
           envFilePath: config.envFilePath

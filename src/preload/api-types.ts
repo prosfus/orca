@@ -150,6 +150,7 @@ import type {
   WorkspaceSessionPatch,
   WorkspaceSessionState
 } from '../shared/types'
+import type { DiagnosticoDispatchRequest } from '../shared/diagnostico-dispatch'
 import type { SetupScriptImportCandidate } from '../shared/setup-script-imports'
 import type { GitHistoryOptions, GitHistoryResult } from '../shared/git-history'
 import type { PublicKnownRuntimeEnvironment } from '../shared/runtime-environments'
@@ -2482,6 +2483,12 @@ export type PreloadApi = {
     delete: (id: string) => Promise<void>
     /** Subscribe to 'diagnosticos:changed'; returns an unsubscribe function. */
     onChanged: (callback: () => void) => () => void
+    /** Stamp a worktree's lineage origin as 'incidencia' so it stays hidden from Workspaces. */
+    adoptWorktree: (worktreeId: string) => Promise<void>
+    /** Launch-pipeline IPC (docs/incidencia-diagnostics.md §5). */
+    onDispatchRequested: (callback: (request: DiagnosticoDispatchRequest) => void) => () => void
+    rendererReady: () => Promise<void>
+    dispatchSettled: (diagnosticoId: string) => Promise<void>
   }
   wsl: {
     isAvailable: () => Promise<boolean>

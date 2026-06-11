@@ -5,14 +5,10 @@ import type { Diagnostico } from '../../shared/types'
 
 // Why: Trabe diagnosticos are ephemeral launch records persisted in the
 // PersistedState JSON, mirroring the AutomationRun IPC surface.
-export function registerDiagnosticoHandlers(
-  store: Store,
-  mainWindow: BrowserWindow | null
-): void {
+export function registerDiagnosticoHandlers(store: Store, mainWindow: BrowserWindow | null): void {
   ipcMain.handle('diagnosticos:list', (): Diagnostico[] => store.listDiagnosticos())
-  ipcMain.handle(
-    'diagnosticos:get',
-    (_event, args: { id: string }): Diagnostico | null => store.getDiagnostico(args.id)
+  ipcMain.handle('diagnosticos:get', (_event, args: { id: string }): Diagnostico | null =>
+    store.getDiagnostico(args.id)
   )
   ipcMain.handle(
     'diagnosticos:update',
@@ -25,6 +21,15 @@ export function registerDiagnosticoHandlers(
   ipcMain.handle('diagnosticos:delete', (_event, args: { id: string }): void => {
     store.deleteDiagnostico(args.id)
     notifyDiagnosticosChanged(mainWindow)
+  })
+  // Stamp the diagnostic worktree's lineage origin so it stays hidden from the
+  // Workspaces list (visible-worktrees filters origin === 'incidencia').
+  ipcMain.handle('diagnosticos:adoptWorktree', (_event, args: { worktreeId: string }): void => {
+    const existing = store.getWorktreeLineage(args.worktreeId)
+    if (!existing) {
+      return
+    }
+    store.setWorktreeLineage(args.worktreeId, { ...existing, origin: 'incidencia' })
   })
 }
 

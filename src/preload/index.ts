@@ -47,6 +47,12 @@ import type {
   WorktreeDefaultTabsLaunch,
   WorktreeRemoteBranchConflictEvent
 } from '../shared/types'
+import {
+  DIAGNOSTICO_DISPATCH_REQUESTED,
+  DIAGNOSTICO_DISPATCH_SETTLED,
+  DIAGNOSTICO_RENDERER_READY,
+  type DiagnosticoDispatchRequest
+} from '../shared/diagnostico-dispatch'
 import type { GitHistoryOptions, GitHistoryResult } from '../shared/git-history'
 import type { ShellOpenLocalPathResult } from '../shared/shell-open-types'
 import type { SkillDiscoveryResult, SkillDiscoveryTarget } from '../shared/skills'
@@ -3556,7 +3562,22 @@ const api = {
       const listener = (): void => callback()
       ipcRenderer.on('diagnosticos:changed', listener)
       return () => ipcRenderer.removeListener('diagnosticos:changed', listener)
-    }
+    },
+    adoptWorktree: (worktreeId: string): Promise<void> =>
+      ipcRenderer.invoke('diagnosticos:adoptWorktree', { worktreeId }),
+    onDispatchRequested: (
+      callback: (request: DiagnosticoDispatchRequest) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        request: DiagnosticoDispatchRequest
+      ): void => callback(request)
+      ipcRenderer.on(DIAGNOSTICO_DISPATCH_REQUESTED, listener)
+      return () => ipcRenderer.removeListener(DIAGNOSTICO_DISPATCH_REQUESTED, listener)
+    },
+    rendererReady: (): Promise<void> => ipcRenderer.invoke(DIAGNOSTICO_RENDERER_READY),
+    dispatchSettled: (diagnosticoId: string): Promise<void> =>
+      ipcRenderer.invoke(DIAGNOSTICO_DISPATCH_SETTLED, { diagnosticoId })
   },
 
   e2e: {
