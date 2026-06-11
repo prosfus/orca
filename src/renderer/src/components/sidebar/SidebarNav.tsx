@@ -1,5 +1,15 @@
 import React from 'react'
-import { Bell, CalendarClock, EyeOff, Github, Gitlab, List, Search, Smartphone } from 'lucide-react'
+import {
+  Bell,
+  Building2,
+  CalendarClock,
+  EyeOff,
+  Github,
+  Gitlab,
+  List,
+  Search,
+  Smartphone
+} from 'lucide-react'
 import { useAppStore } from '@/store'
 import { useRepoMap } from '@/store/selectors'
 import { cn } from '@/lib/utils'
@@ -112,6 +122,7 @@ const SidebarNav = React.memo(function SidebarNav() {
   const linearStatus = useAppStore((s) => s.linearStatus)
   const linearStatusChecked = useAppStore((s) => s.linearStatusChecked)
   const checkLinearConnection = useAppStore((s) => s.checkLinearConnection)
+  const trabeEnvFilePath = useAppStore((s) => s.settings?.trabeEnvFilePath)
   const showAgentsButton = useAppStore((s) => shouldShowAgentsButton(s.settings))
   const showAutomationsButton = useAppStore((s) => shouldShowAutomationsButton(s.settings))
   const showMobileButton = useAppStore((s) => shouldShowMobileButton(s.settings))
@@ -125,7 +136,8 @@ const SidebarNav = React.memo(function SidebarNav() {
         preferredVisibleTaskProviders,
         {
           gitlabInstalled: preflightStatus?.glab?.installed === true,
-          linearConnected: linearStatus.connected === true
+          linearConnected: linearStatus.connected === true,
+          trabeConfigured: Boolean(trabeEnvFilePath?.trim())
         },
         defaultTaskSource
       ),
@@ -133,7 +145,8 @@ const SidebarNav = React.memo(function SidebarNav() {
       defaultTaskSource,
       linearStatus.connected,
       preferredVisibleTaskProviders,
-      preflightStatus?.glab?.installed
+      preflightStatus?.glab?.installed,
+      trabeEnvFilePath
     ]
   )
   const resolvedDefaultTaskSource = React.useMemo(
@@ -282,6 +295,20 @@ const SidebarNav = React.memo(function SidebarNav() {
                     }}
                   >
                     <JiraIcon className="size-3.5" />
+                  </TaskProviderShortcut>
+                ) : null}
+                {visibleTaskProviders.includes('trabe') ? (
+                  <TaskProviderShortcut
+                    canBrowseTasks={canBrowseTasks}
+                    label={translate(
+                      'auto.components.sidebar.SidebarNav.trabe.open',
+                      'Open Trabe tasks'
+                    )}
+                    onOpen={() => {
+                      openTaskPage({ taskSource: 'trabe' })
+                    }}
+                  >
+                    <Building2 className="size-3.5" aria-hidden />
                   </TaskProviderShortcut>
                 ) : null}
               </span>

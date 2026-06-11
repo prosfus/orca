@@ -1447,6 +1447,16 @@ const api = {
       ipcRenderer.invoke('jira:listTransitions', args)
   },
 
+  trabe: {
+    status: (): Promise<unknown> => ipcRenderer.invoke('trabe:status'),
+
+    listIssues: (args?: { limit?: number }): Promise<unknown[]> =>
+      ipcRenderer.invoke('trabe:listIssues', args),
+
+    getIssue: (args: { numero: number }): Promise<unknown> =>
+      ipcRenderer.invoke('trabe:getIssue', args)
+  },
+
   starNag: {
     onShow: (callback: () => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent): void => callback()
