@@ -127,6 +127,10 @@ export function computeVisibleWorktreeIds(
     )
   }
 
+  // Why: incidencia diagnostic worktrees are ephemeral and live in their own
+  // "Incidencias" section, never in the Workspaces list.
+  all = all.filter((w) => opts.worktreeLineageById[w.id]?.origin !== 'incidencia')
+
   // Apply cached sort order. Items not yet in the cache (e.g. brand-new
   // worktrees before the next sortEpoch bump) are appended at the end.
   const orderIndex = new Map(sortedIds.map((id, i) => [id, i]))
