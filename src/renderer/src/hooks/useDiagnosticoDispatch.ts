@@ -40,8 +40,20 @@ export function useDiagnosticoDispatch(): void {
         worktreeId = worktree.id
         await window.api.diagnosticos.update(request.diagnosticoId, { worktreeId: worktree.id })
 
-        // Hide the ephemeral worktree from Workspaces (origin 'incidencia').
+        // Hide the ephemeral worktree from Workspaces (origin 'incidencia') —
+        // persist it in main and stamp the live store so it never flashes in the list.
         await window.api.diagnosticos.adoptWorktree(worktree.id)
+        useAppStore.setState((s) => {
+          const existing = s.worktreeLineageById[worktree.id]
+          return existing
+            ? {
+                worktreeLineageById: {
+                  ...s.worktreeLineageById,
+                  [worktree.id]: { ...existing, origin: 'incidencia' }
+                }
+              }
+            : {}
+        })
 
         // Run the agent headless in main: it reads code + DB (read-only), writes
         // DIAGNOSTICO.md, and exits. Main streams output into the Diagnostico and

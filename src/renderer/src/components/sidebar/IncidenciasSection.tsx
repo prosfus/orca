@@ -11,6 +11,7 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import CommentMarkdown from './CommentMarkdown'
+import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
 
 // Why: mirrors the WorktreeCardMetadataStatusBadges tone recipe so diagnostic
@@ -85,6 +86,21 @@ function IncidenciasSection(): React.JSX.Element | null {
         setOpenDiagnostico((current) =>
           current ? (items.find((entry) => entry.id === current.id) ?? null) : current
         )
+        // Self-heal: any worktree backing a diagnostic must read as origin
+        // 'incidencia' so it stays out of the Workspaces list, even if the
+        // optimistic stamp at dispatch time was missed.
+        useAppStore.setState((s) => {
+          let changed = false
+          const next = { ...s.worktreeLineageById }
+          for (const entry of items) {
+            const lineage = entry.worktreeId ? next[entry.worktreeId] : undefined
+            if (lineage && lineage.origin !== 'incidencia') {
+              next[entry.worktreeId as string] = { ...lineage, origin: 'incidencia' }
+              changed = true
+            }
+          }
+          return changed ? { worktreeLineageById: next } : {}
+        })
       })
     }
     reload()
