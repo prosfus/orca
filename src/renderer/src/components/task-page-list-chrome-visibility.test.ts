@@ -10,6 +10,7 @@ const baseState: TaskPageListChromeVisibilityState = {
   hasGitHubDetail: false,
   hasGitLabDetail: false,
   hasJiraDetail: false,
+  hasTrabeDetail: false,
   hasLinearIssueDetail: false,
   hasLinearProjectContext: false,
   hasLinearViewContext: false
@@ -43,6 +44,13 @@ describe('shouldHideTaskPageListChrome', () => {
         ...baseState,
         taskSource: 'linear',
         hasLinearProjectContext: true
+      })
+    ).toBe(true)
+    expect(
+      shouldHideTaskPageListChrome({
+        ...baseState,
+        taskSource: 'trabe',
+        hasTrabeDetail: true
       })
     ).toBe(true)
   })

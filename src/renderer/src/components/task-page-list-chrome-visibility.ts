@@ -5,6 +5,7 @@ export type TaskPageListChromeVisibilityState = {
   hasGitHubDetail: boolean
   hasGitLabDetail: boolean
   hasJiraDetail: boolean
+  hasTrabeDetail: boolean
   hasLinearIssueDetail: boolean
   hasLinearProjectContext: boolean
   hasLinearViewContext: boolean
@@ -15,6 +16,7 @@ export function shouldHideTaskPageListChrome({
   hasGitHubDetail,
   hasGitLabDetail,
   hasJiraDetail,
+  hasTrabeDetail,
   hasLinearIssueDetail,
   hasLinearProjectContext,
   hasLinearViewContext
@@ -31,8 +33,6 @@ export function shouldHideTaskPageListChrome({
     case 'linear':
       return hasLinearIssueDetail || hasLinearProjectContext || hasLinearViewContext
     case 'trabe':
-      // Phase 7 wires a Trabe detail dialog; until then a trabe selection never
-      // hides the list chrome.
-      return false
+      return hasTrabeDetail
   }
 }

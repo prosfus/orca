@@ -134,6 +134,8 @@ import type {
   SearchResult,
   StatsSummary,
   MemorySnapshot,
+  TrabeConnectionStatus,
+  TrabeIncidencia,
   TuiAgent,
   UpdateStatus,
   Worktree,
@@ -1571,6 +1573,12 @@ export type PreloadApi = {
       siteId?: string
     }) => Promise<JiraUser[]>
     listTransitions: (args: { key: string; siteId?: string }) => Promise<JiraTransition[]>
+  }
+  // Read-only Trabe task provider: list incidencias and fetch one by numero.
+  trabe: {
+    status: () => Promise<TrabeConnectionStatus>
+    listIssues: (args?: { limit?: number }) => Promise<TrabeIncidencia[]>
+    getIssue: (args: { numero: number }) => Promise<TrabeIncidencia | null>
   }
   starNag: {
     onShow: (callback: () => void) => () => void

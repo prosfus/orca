@@ -2890,6 +2890,13 @@ export type TrabeIncidencia = {
   url: string // deep-link to Trabe (configurable base + /incidencias/<numero>)
 }
 
+/** Result of `trabe.status`. Unlike Jira there is no viewer/site concept:
+ *  connected just means the configured read-only DB answered `SELECT 1`. */
+export type TrabeConnectionStatus = {
+  connected: boolean
+  error?: string
+}
+
 /** Ephemeral diagnostic run record; mirrors AutomationRun. The markdown is the
  *  artifact — the worktree is removed once the report is harvested. */
 export type Diagnostico = {
