@@ -2503,6 +2503,8 @@ export type PreloadApi = {
       worktreePath: string
       exitCode: number
     }) => Promise<void>
+    /** Manually diagnose the most recent open incidencia (on-demand). */
+    triggerLatest: () => Promise<{ ok: boolean; error?: string }>
   }
   wsl: {
     isAvailable: () => Promise<boolean>

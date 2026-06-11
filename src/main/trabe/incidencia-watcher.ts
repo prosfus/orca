@@ -1,6 +1,7 @@
 import { ipcMain, type WebContents } from 'electron'
 import type { Store } from '../persistence'
-import { createTrabeDbClient, readDatabaseUrlFromEnvFile } from './db-client'
+import type { GlobalSettings, TrabeIncidencia } from '../../shared/types'
+import { createTrabeDbClient, readDatabaseUrlFromEnvFile, type TrabeDbClient } from './db-client'
 import { buildDiagnosticPrompt } from './diagnostic-prompt'
 import {
   DIAGNOSTICO_DISPATCH_REQUESTED,
@@ -38,6 +39,11 @@ export class IncidenciaWatcher {
       (_event, payload: DiagnosticoDispatchSettled): void => {
         this.handleSettled(payload?.diagnosticoId)
       }
+    )
+    // Manual on-demand trigger (e.g. the "Diagnosticar última incidencia" button).
+    ipcMain.handle(
+      'diagnosticos:triggerLatest',
+      (): Promise<{ ok: boolean; error?: string }> => this.triggerLatestOpen()
     )
   }
 
@@ -106,7 +112,6 @@ export class IncidenciaWatcher {
         return
       }
       const cursor = settings.trabeLastSeenIncidenciaCreatedAt
-      const agentCli = settings.diagnosticoAgent ?? 'claude'
       const rows = await client.listNewIncidencias(cursor)
       let maxCreatedAt = cursor
       for (const row of rows) {
@@ -116,32 +121,7 @@ export class IncidenciaWatcher {
           continue
         }
         this.seenIncidenciaIds.add(incidencia.id)
-        // Build the prompt in main: it needs the incidencia's descripción (not
-        // carried on TrabeIncidencia) and bakes in the read-only safety rules.
-        const detail = await client.getIncidenciaDetail(incidencia.numero)
-        const prompt = buildDiagnosticPrompt({
-          numero: incidencia.numero,
-          asunto: detail?.asunto ?? incidencia.title,
-          descripcion: detail?.descripcion ?? null,
-          moduloAfectado: detail?.moduloAfectado ?? null,
-          errorSignature: detail?.errorSignature ?? null,
-          proyectoNombre: detail?.proyectoNombre ?? incidencia.proyectoNombre,
-          clienteNombre: detail?.clienteNombre ?? incidencia.empresaNombre
-        })
-        const diagnostico = this.store.createDiagnostico({
-          incidenciaNumero: incidencia.numero,
-          incidenciaAsunto: incidencia.title,
-          agentCli
-        })
-        this.queue.push({
-          diagnosticoId: diagnostico.id,
-          incidencia,
-          agentCli,
-          prompt,
-          repoPath: config.repoPath,
-          baseBranch: settings.trabeBaseBranch,
-          envFilePath: config.envFilePath
-        })
+        await this.enqueueDiagnostic(incidencia, config, settings, client)
       }
       // Cursor is monotonic on createdAt; advance past everything we just saw so
       // restarts never re-detect the same incidencia.
@@ -154,6 +134,73 @@ export class IncidenciaWatcher {
     } finally {
       await client.close()
       this.polling = false
+    }
+  }
+
+  // Build the prompt (needs the incidencia's descripción, not on TrabeIncidencia)
+  // and queue a dispatch. Shared by polling and the manual trigger.
+  private async enqueueDiagnostic(
+    incidencia: TrabeIncidencia,
+    config: WatcherConfig,
+    settings: GlobalSettings,
+    client: TrabeDbClient
+  ): Promise<void> {
+    const agentCli = settings.diagnosticoAgent ?? 'claude'
+    const detail = await client.getIncidenciaDetail(incidencia.numero)
+    const prompt = buildDiagnosticPrompt({
+      numero: incidencia.numero,
+      asunto: detail?.asunto ?? incidencia.title,
+      descripcion: detail?.descripcion ?? null,
+      moduloAfectado: detail?.moduloAfectado ?? null,
+      errorSignature: detail?.errorSignature ?? null,
+      proyectoNombre: detail?.proyectoNombre ?? incidencia.proyectoNombre,
+      clienteNombre: detail?.clienteNombre ?? incidencia.empresaNombre
+    })
+    const diagnostico = this.store.createDiagnostico({
+      incidenciaNumero: incidencia.numero,
+      incidenciaAsunto: incidencia.title,
+      agentCli
+    })
+    this.queue.push({
+      diagnosticoId: diagnostico.id,
+      incidencia,
+      agentCli,
+      prompt,
+      repoPath: config.repoPath,
+      baseBranch: settings.trabeBaseBranch,
+      envFilePath: config.envFilePath
+    })
+  }
+
+  // Manually diagnose the most recently created open incidencia (on-demand,
+  // bypassing the cursor). Returns a result for UI feedback.
+  async triggerLatestOpen(): Promise<{ ok: boolean; error?: string }> {
+    const config = this.resolveConfig()
+    if (!config) {
+      return {
+        ok: false,
+        error: 'Trabe no está configurado: revisa la ruta del .env y del repo en Ajustes.'
+      }
+    }
+    const settings = this.store.getSettings()
+    const client = createTrabeDbClient({
+      databaseUrl: config.databaseUrl,
+      deepLinkBase: settings.trabeDeepLinkBase
+    })
+    try {
+      const [incidencia] = await client.listIncidencias({ limit: 1 })
+      if (!incidencia) {
+        return { ok: false, error: 'No hay incidencias abiertas para diagnosticar.' }
+      }
+      this.seenIncidenciaIds.add(incidencia.id)
+      await this.enqueueDiagnostic(incidencia, config, settings, client)
+      this.drainQueue()
+      return { ok: true }
+    } catch (err) {
+      console.error('[incidencia-watcher] manual trigger failed:', err)
+      return { ok: false, error: String(err) }
+    } finally {
+      await client.close()
     }
   }
 

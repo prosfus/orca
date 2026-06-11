@@ -173,6 +173,7 @@ function IncidenciasSection(): React.JSX.Element | null {
   const [diagnosticos, setDiagnosticos] = useState<Diagnostico[]>([])
   const [openDiagnostico, setOpenDiagnostico] = useState<Diagnostico | null>(null)
   const repos = useAppStore((s) => s.repos)
+  const trabeEnvFilePath = useAppStore((s) => s.settings?.trabeEnvFilePath)
   const trabeRepoPath = useAppStore((s) => s.settings?.trabeRepoPath)
   const trabeBaseBranch = useAppStore((s) => s.settings?.trabeBaseBranch)
   const trabeDeepLinkBase = useAppStore((s) => s.settings?.trabeDeepLinkBase)
@@ -240,6 +241,16 @@ function IncidenciasSection(): React.JSX.Element | null {
     toast.success('Informe copiado al portapapeles')
   }
 
+  const diagnoseLatest = (): void => {
+    void window.api.diagnosticos.triggerLatest().then((res) => {
+      if (res.ok) {
+        toast.success('Diagnóstico lanzado para la última incidencia abierta.')
+      } else {
+        toast.error(res.error ?? 'No se pudo lanzar el diagnóstico.')
+      }
+    })
+  }
+
   // Promote a diagnostic to a real workspace: open the New Workspace composer
   // prefilled with the Trabe repo + base branch, seeding the agent with the
   // incidencia + diagnosis via linkedContext (treated as reference data).
@@ -272,7 +283,9 @@ function IncidenciasSection(): React.JSX.Element | null {
     })
   }
 
-  if (diagnosticos.length === 0) {
+  // Show the section (header + actions) whenever Trabe is configured, so the
+  // manual "Diagnosticar" trigger stays reachable even before any diagnostic.
+  if (diagnosticos.length === 0 && !trabeEnvFilePath) {
     return null
   }
 
@@ -303,6 +316,11 @@ function IncidenciasSection(): React.JSX.Element | null {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={diagnoseLatest}>
+              <Stethoscope className="size-3.5" />
+              Diagnosticar última incidencia
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!hasCompleted} onSelect={clearCompleted}>
               <Trash2 className="size-3.5" />
               Limpiar terminadas

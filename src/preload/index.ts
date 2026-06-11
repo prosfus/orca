@@ -3589,7 +3589,9 @@ const api = {
       diagnosticoId: string
       worktreePath: string
       exitCode: number
-    }): Promise<void> => ipcRenderer.invoke('diagnosticos:harvest', args)
+    }): Promise<void> => ipcRenderer.invoke('diagnosticos:harvest', args),
+    triggerLatest: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('diagnosticos:triggerLatest')
   },
 
   e2e: {
