@@ -10,6 +10,12 @@ function joinWorktreePath(worktreePath: string, file: string): string {
   return `${worktreePath.replace(/[/\\]$/, '')}/${file}`
 }
 
+// Why: trabeRepoPath (from settings) and repo.path can differ in slash style and
+// case on Windows; normalize so the repo lookup matches regardless.
+function normalizeRepoPath(value: string): string {
+  return value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+}
+
 /**
  * Renderer half of the diagnostic launch pipeline (docs/incidencia-diagnostics.md
  * §5). Listens for main's dispatch requests (queue gated by N), runs one
@@ -32,7 +38,8 @@ export function useDiagnosticoDispatch(): void {
       }
 
       const state = useAppStore.getState()
-      const repo = state.repos.find((entry) => entry.path === request.repoPath)
+      const targetRepoPath = normalizeRepoPath(request.repoPath)
+      const repo = state.repos.find((entry) => normalizeRepoPath(entry.path) === targetRepoPath)
       if (!repo) {
         await failDiagnostico('El repo de Trabe no está registrado en Orca.')
         settle()
