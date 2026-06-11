@@ -3,10 +3,9 @@ import { ipcMain } from 'electron'
 import type { Store } from '../persistence'
 import type { Diagnostico } from '../../shared/types'
 import {
-  prepareDiagnosticRun,
-  harvestDiagnostic,
-  type PrepareDiagnosticRunArgs,
-  type HarvestDiagnosticArgs
+  runHeadlessDiagnostic,
+  cancelHeadlessDiagnostic,
+  type RunHeadlessDiagnosticArgs
 } from '../trabe/diagnostic-runner'
 
 // Why: Trabe diagnosticos are ephemeral launch records persisted in the
@@ -50,16 +49,16 @@ export function registerDiagnosticoHandlers(store: Store, mainWindow: BrowserWin
       createdAt: Date.now()
     })
   })
-  // Prepare a headless agent run: write the prompt + wrapper script into the
-  // worktree and return the command to run it in an Orca terminal.
+  // Run the agent headless in main: it streams parsed progress into the
+  // Diagnostico (live) and harvests DIAGNOSTICO.md on exit. Resolves when done.
   ipcMain.handle(
-    'diagnosticos:prepareAgentRun',
-    (_event, args: PrepareDiagnosticRunArgs): { command: string } | null =>
-      prepareDiagnosticRun(store, args)
+    'diagnosticos:runAgent',
+    (_event, args: RunHeadlessDiagnosticArgs): Promise<void> =>
+      runHeadlessDiagnostic(store, () => notifyDiagnosticosChanged(mainWindow), args)
   )
-  // Harvest the report after the agent terminal exits.
-  ipcMain.handle('diagnosticos:harvest', (_event, args: HarvestDiagnosticArgs): void => {
-    harvestDiagnostic(store, () => notifyDiagnosticosChanged(mainWindow), args)
+  // Cancel an in-flight headless run (e.g. on Descartar while investigating).
+  ipcMain.handle('diagnosticos:cancel', (_event, args: { id: string }): void => {
+    cancelHeadlessDiagnostic(args.id)
   })
 }
 

@@ -1,14 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import {
-  Stethoscope,
-  FileText,
-  MoreHorizontal,
-  SquarePlus,
-  SquareTerminal,
-  Copy,
-  Trash2,
-  X
-} from 'lucide-react'
+import { Stethoscope, FileText, MoreHorizontal, SquarePlus, Copy, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Diagnostico } from '../../../../shared/types'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +22,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import CommentMarkdown from './CommentMarkdown'
 import { useAppStore } from '@/store'
-import { activateWorktreeFromSidebar } from '@/lib/sidebar-worktree-activation'
 import { cn } from '@/lib/utils'
 
 // Why: mirrors the WorktreeCardMetadataStatusBadges tone recipe so diagnostic
@@ -88,24 +78,21 @@ function buildWorkspaceSeed(diagnostico: Diagnostico): string {
 function IncidenciaRow({
   diagnostico,
   onView,
-  onOpenAgent,
   onCreateWorkspace,
   onDiscard
 }: {
   diagnostico: Diagnostico
   onView: (diagnostico: Diagnostico) => void
-  onOpenAgent: (worktreeId: string) => void
   onCreateWorkspace: (diagnostico: Diagnostico) => void
   onDiscard: (diagnostico: Diagnostico) => void
 }): React.JSX.Element {
   const status = STATUS_META[diagnostico.status]
-  const canView = diagnostico.markdown.length > 0
-  // While investigating, the worktree's terminal is live — clicking opens it.
-  const liveWorktreeId = diagnostico.status === 'investigating' ? diagnostico.worktreeId : null
+  const investigating = diagnostico.status === 'investigating'
+  // Open the panel while investigating (live progress streams in) or once there's
+  // a report/output to read.
+  const canOpen = investigating || diagnostico.markdown.length > 0
   const handleRowClick = (): void => {
-    if (liveWorktreeId) {
-      onOpenAgent(liveWorktreeId)
-    } else if (canView) {
+    if (canOpen) {
       onView(diagnostico)
     }
   }
@@ -113,7 +100,7 @@ function IncidenciaRow({
     <div className="group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 hover:bg-worktree-sidebar-accent">
       <button
         type="button"
-        disabled={!liveWorktreeId && !canView}
+        disabled={!canOpen}
         onClick={handleRowClick}
         className="min-w-0 flex-1 text-left enabled:hover:underline disabled:cursor-default"
       >
@@ -141,17 +128,14 @@ function IncidenciaRow({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          {liveWorktreeId ? (
-            <DropdownMenuItem onSelect={() => onOpenAgent(liveWorktreeId)}>
-              <SquareTerminal className="size-3.5" />
-              Ver agente
-            </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem disabled={!canView} onSelect={() => onView(diagnostico)}>
+          <DropdownMenuItem disabled={!canOpen} onSelect={() => onView(diagnostico)}>
             <FileText className="size-3.5" />
-            Ver informe
+            {investigating ? 'Ver progreso' : 'Ver informe'}
           </DropdownMenuItem>
-          <DropdownMenuItem disabled={!canView} onSelect={() => onCreateWorkspace(diagnostico)}>
+          <DropdownMenuItem
+            disabled={diagnostico.status !== 'ready'}
+            onSelect={() => onCreateWorkspace(diagnostico)}
+          >
             <SquarePlus className="size-3.5" />
             Crear workspace
           </DropdownMenuItem>
@@ -216,8 +200,11 @@ function IncidenciasSection(): React.JSX.Element | null {
   }, [])
 
   const discard = (diagnostico: Diagnostico): void => {
-    // The diagnostic worktree is kept for inspection, so removing the record
-    // must also remove its (hidden) worktree.
+    // Stop the agent if it's still running; its worktree is removed when the run
+    // settles, so best-effort remove here too in case it outlives the record.
+    if (diagnostico.status === 'investigating') {
+      void window.api.diagnosticos.cancel(diagnostico.id)
+    }
     if (diagnostico.worktreeId) {
       void useAppStore.getState().removeWorktree(diagnostico.worktreeId, true)
     }
@@ -334,7 +321,6 @@ function IncidenciasSection(): React.JSX.Element | null {
             key={diagnostico.id}
             diagnostico={diagnostico}
             onView={setOpenDiagnostico}
-            onOpenAgent={activateWorktreeFromSidebar}
             onCreateWorkspace={createWorkspace}
             onDiscard={discard}
           />
@@ -380,15 +366,22 @@ function IncidenciasSection(): React.JSX.Element | null {
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek p-4 text-sm">
-            {openDiagnostico ? (
+            {openDiagnostico && openDiagnostico.markdown ? (
               <CommentMarkdown content={openDiagnostico.markdown} variant="document" />
-            ) : null}
+            ) : openDiagnostico?.status === 'investigating' ? (
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <span className="inline-block size-2 animate-pulse rounded-full bg-amber-500" />
+                Investigando… el progreso del agente aparecerá aquí.
+              </p>
+            ) : (
+              <p className="text-muted-foreground">{openDiagnostico?.error ?? 'Sin informe.'}</p>
+            )}
           </div>
           {openDiagnostico ? (
             <div className="flex items-center gap-2 border-t border-border/60 p-3">
               <Button
                 size="sm"
-                disabled={!openDiagnostico.markdown}
+                disabled={openDiagnostico.status !== 'ready'}
                 onClick={() => createWorkspace(openDiagnostico)}
               >
                 <SquarePlus className="size-3.5" />

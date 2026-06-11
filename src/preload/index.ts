@@ -3578,18 +3578,14 @@ const api = {
     rendererReady: (): Promise<void> => ipcRenderer.invoke(DIAGNOSTICO_RENDERER_READY),
     dispatchSettled: (diagnosticoId: string): Promise<void> =>
       ipcRenderer.invoke(DIAGNOSTICO_DISPATCH_SETTLED, { diagnosticoId }),
-    prepareAgentRun: (args: {
+    runAgent: (args: {
+      diagnosticoId: string
       agentCli: Diagnostico['agentCli']
       prompt: string
       worktreePath: string
       envFilePath: string
-    }): Promise<{ command: string } | null> =>
-      ipcRenderer.invoke('diagnosticos:prepareAgentRun', args),
-    harvest: (args: {
-      diagnosticoId: string
-      worktreePath: string
-      exitCode: number
-    }): Promise<void> => ipcRenderer.invoke('diagnosticos:harvest', args),
+    }): Promise<void> => ipcRenderer.invoke('diagnosticos:runAgent', args),
+    cancel: (id: string): Promise<void> => ipcRenderer.invoke('diagnosticos:cancel', { id }),
     triggerLatest: (): Promise<{ ok: boolean; error?: string }> =>
       ipcRenderer.invoke('diagnosticos:triggerLatest')
   },

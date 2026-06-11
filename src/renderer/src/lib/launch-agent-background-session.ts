@@ -30,9 +30,6 @@ export type LaunchAgentBackgroundSessionArgs = {
   agent: TuiAgent
   worktreeId: string
   prompt?: string
-  /** Replace the agent launch command entirely (e.g. a headless `claude -p`
-   *  invocation). When set, no prompt is pasted; the caller owns the command. */
-  commandOverride?: string
   launchSource?: LaunchSource
   title?: string
   onData?: (chunk: string) => void
@@ -49,17 +46,7 @@ export type LaunchAgentBackgroundSessionResult = {
 export async function launchAgentBackgroundSession(
   args: LaunchAgentBackgroundSessionArgs
 ): Promise<LaunchAgentBackgroundSessionResult | null> {
-  const {
-    agent,
-    worktreeId,
-    prompt,
-    commandOverride,
-    launchSource,
-    title,
-    onData,
-    onExit,
-    onAgentStatus
-  } = args
+  const { agent, worktreeId, prompt, launchSource, title, onData, onExit, onAgentStatus } = args
   const store = useAppStore.getState()
   const worktree = store.allWorktrees().find((entry) => entry.id === worktreeId)
   const repo = worktree ? store.repos.find((entry) => entry.id === worktree.repoId) : null
@@ -104,12 +91,6 @@ export async function launchAgentBackgroundSession(
   }
   if (!startupPlan) {
     return null
-  }
-  if (commandOverride) {
-    // Caller supplies the full launch command (headless diagnostic run); keep the
-    // built env/ORCA_* wiring but swap the command and never paste a prompt.
-    startupPlan = { ...startupPlan, launchCommand: commandOverride }
-    pasteDraftAfterLaunch = null
   }
 
   // Why: automation runs should start without revealing the workspace.
