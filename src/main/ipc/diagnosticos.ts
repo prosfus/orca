@@ -27,10 +27,23 @@ export function registerDiagnosticoHandlers(store: Store, mainWindow: BrowserWin
   // Workspaces list (visible-worktrees filters origin === 'incidencia').
   ipcMain.handle('diagnosticos:adoptWorktree', (_event, args: { worktreeId: string }): void => {
     const existing = store.getWorktreeLineage(args.worktreeId)
-    if (!existing) {
+    if (existing) {
+      store.setWorktreeLineage(args.worktreeId, { ...existing, origin: 'incidencia' })
       return
     }
-    store.setWorktreeLineage(args.worktreeId, { ...existing, origin: 'incidencia' })
+    // No lineage yet — diagnostic worktrees are created without a parent context,
+    // so create a minimal entry stamped 'incidencia' so it's filtered out of the
+    // Workspaces list (the merge-only path above would otherwise no-op).
+    const instanceId = store.getWorktreeMeta(args.worktreeId)?.instanceId ?? args.worktreeId
+    store.setWorktreeLineage(args.worktreeId, {
+      worktreeId: args.worktreeId,
+      worktreeInstanceId: instanceId,
+      parentWorktreeId: '',
+      parentWorktreeInstanceId: '',
+      origin: 'incidencia',
+      capture: { source: 'manual-action', confidence: 'explicit' },
+      createdAt: Date.now()
+    })
   })
   // Run the diagnostic agent headlessly (reliable completion + harvest); resolves
   // when the agent exits and the report has been stored.
