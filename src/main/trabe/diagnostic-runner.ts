@@ -61,20 +61,30 @@ export function prepareDiagnosticRun(
       `  elseif ($v.StartsWith("'") -and $v.EndsWith("'")) { $v = $v.Substring(1, $v.Length - 2) }`,
       `  $env:DATABASE_URL = $v`,
       `}`,
-      `Get-Content -Raw '${promptPath}' | ${agentCommand}`
+      `Get-Content -Raw '${promptPath}' | ${agentCommand}`,
+      // Why: the PTY runs an interactive shell and types this command; exit so the
+      // shell closes when the agent finishes → PTY exit → harvest.
+      'exit'
     ].join('\n')
     writeFileSync(scriptPath, script, 'utf8')
-    return { command: `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"` }
+    // Why: run in the PTY's own (profile-loaded) shell with `&` so `claude` is on
+    // PATH; a nested `powershell -NoProfile` would lose it. Process-scoped Bypass
+    // lets the local .ps1 run regardless of the machine's ExecutionPolicy.
+    return {
+      command: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; & '${scriptPath}'`
+    }
   }
 
   const scriptPath = path.join(args.worktreePath, RUN_SCRIPT_POSIX)
   const script = [
-    '#!/usr/bin/env bash',
     `export DATABASE_URL="$(grep -E '^[[:space:]]*DATABASE_URL[[:space:]]*=' '${env}' | head -1 | sed -E 's/^[[:space:]]*DATABASE_URL[[:space:]]*=[[:space:]]*//')"`,
-    `cat '${promptPath}' | ${agentCommand}`
+    `cat '${promptPath}' | ${agentCommand}`,
+    'exit'
   ].join('\n')
   writeFileSync(scriptPath, script, 'utf8')
-  return { command: `bash "${scriptPath}"` }
+  // Source it in the PTY's own shell so $PATH (and the agent) resolve, and the
+  // trailing `exit` closes the shell → PTY exit → harvest.
+  return { command: `. '${scriptPath}'` }
 }
 
 /** Read the harvested report on agent exit, set the Diagnostico status, and
