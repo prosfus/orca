@@ -1,4 +1,4 @@
-import { Check, Github, Gitlab } from 'lucide-react'
+import { Building2, Check, Github, Gitlab } from 'lucide-react'
 import type { GlobalSettings, TaskProvider } from '../../../../shared/types'
 import {
   TASK_PROVIDERS,
@@ -11,6 +11,7 @@ import { LinearIcon } from '@/components/icons/LinearIcon'
 import { Label } from '../ui/label'
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsSubsectionHeader } from './SettingsFormControls'
+import { IncidenciasSettingsSection } from './IncidenciasSettingsSection'
 import { translate } from '@/i18n/i18n'
 
 type TasksPaneProps = {
@@ -26,27 +27,46 @@ const TASK_PROVIDER_OPTIONS: readonly {
 }[] = [
   {
     id: 'github',
-    label: translate("auto.components.settings.TasksPane.e14063e727", "GitHub"),
-    description: translate("auto.components.settings.TasksPane.1db47236cd", "Show GitHub in the Tasks source picker and sidebar shortcuts."),
+    label: translate('auto.components.settings.TasksPane.e14063e727', 'GitHub'),
+    description: translate(
+      'auto.components.settings.TasksPane.1db47236cd',
+      'Show GitHub in the Tasks source picker and sidebar shortcuts.'
+    ),
     Icon: ({ className }) => <Github className={className} />
   },
   {
     id: 'gitlab',
-    label: translate("auto.components.settings.TasksPane.7c5d7fdc20", "GitLab"),
-    description: translate("auto.components.settings.TasksPane.dd67a1b6e1", "Show GitLab in the Tasks source picker and sidebar shortcuts."),
+    label: translate('auto.components.settings.TasksPane.7c5d7fdc20', 'GitLab'),
+    description: translate(
+      'auto.components.settings.TasksPane.dd67a1b6e1',
+      'Show GitLab in the Tasks source picker and sidebar shortcuts.'
+    ),
     Icon: ({ className }) => <Gitlab className={className} />
   },
   {
     id: 'linear',
-    label: translate("auto.components.settings.TasksPane.09ae2d7c51", "Linear"),
-    description: translate("auto.components.settings.TasksPane.e4170c9615", "Show Linear in the Tasks source picker and sidebar shortcuts."),
+    label: translate('auto.components.settings.TasksPane.09ae2d7c51', 'Linear'),
+    description: translate(
+      'auto.components.settings.TasksPane.e4170c9615',
+      'Show Linear in the Tasks source picker and sidebar shortcuts.'
+    ),
     Icon: ({ className }) => <LinearIcon className={className} />
   },
   {
     id: 'jira',
-    label: translate("auto.components.settings.TasksPane.6b23a34f6d", "Jira"),
-    description: translate("auto.components.settings.TasksPane.8e1305fcc6", "Show Jira in the Tasks source picker and sidebar shortcuts."),
+    label: translate('auto.components.settings.TasksPane.6b23a34f6d', 'Jira'),
+    description: translate(
+      'auto.components.settings.TasksPane.8e1305fcc6',
+      'Show Jira in the Tasks source picker and sidebar shortcuts.'
+    ),
     Icon: ({ className }) => <JiraIcon className={className} />
+  },
+  {
+    id: 'trabe',
+    label: 'Trabe',
+    description:
+      'Muestra Trabe (incidencias de soporte) en el selector de Tasks y los accesos del sidebar.',
+    Icon: ({ className }) => <Building2 className={className} />
   }
 ]
 
@@ -73,13 +93,19 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
     <div className="space-y-6">
       <section className="space-y-3">
         <SettingsSubsectionHeader
-          title={translate("auto.components.settings.TasksPane.93e72ef659", "Task Sources")}
-          description={translate("auto.components.settings.TasksPane.71644aba56", "Choose which task providers appear in the Tasks page source picker and sidebar shortcuts. At least one provider must stay visible.")}
+          title={translate('auto.components.settings.TasksPane.93e72ef659', 'Task Sources')}
+          description={translate(
+            'auto.components.settings.TasksPane.71644aba56',
+            'Choose which task providers appear in the Tasks page source picker and sidebar shortcuts. At least one provider must stay visible.'
+          )}
         />
 
         <SearchableSetting
-          title={translate("auto.components.settings.TasksPane.f71d8a9dd3", "Task Providers")}
-          description={translate("auto.components.settings.TasksPane.3a72b9745e", "Choose which task providers appear in the Tasks page and sidebar shortcuts.")}
+          title={translate('auto.components.settings.TasksPane.f71d8a9dd3', 'Task Providers')}
+          description={translate(
+            'auto.components.settings.TasksPane.3a72b9745e',
+            'Choose which task providers appear in the Tasks page and sidebar shortcuts.'
+          )}
           keywords={[
             'tasks',
             'provider',
@@ -145,6 +171,8 @@ export function TasksPane({ settings, updateSettings }: TasksPaneProps): React.J
           })}
         </SearchableSetting>
       </section>
+
+      <IncidenciasSettingsSection settings={settings} updateSettings={updateSettings} />
     </div>
   )
 }
