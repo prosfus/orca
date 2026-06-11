@@ -109,6 +109,7 @@ import { browserManager } from './browser/browser-manager'
 import { initializeBrowserSessionsForApp } from './browser/browser-session-startup'
 import { setUnreadDockBadgeCount } from './dock/unread-badge'
 import { AutomationService } from './automations/service'
+import { IncidenciaWatcher } from './trabe/incidencia-watcher'
 import { AgentAwakeService } from './agent-awake-service'
 import {
   getCrashBreadcrumbSnapshot,
@@ -165,6 +166,7 @@ let unsubscribeAgentAwakeStatusChanges: (() => void) | null = null
 let watcherShutdownPromise: Promise<void> | null = null
 let watcherShutdownDone = false
 let automations: AutomationService | null = null
+let incidenciaWatcher: IncidenciaWatcher | null = null
 let keybindings: KeybindingService | null = null
 let expectedRendererReload: { webContentsId: number; until: number } | null = null
 let firstWindowStartupServicesReady: Promise<void> = Promise.resolve()
@@ -614,6 +616,8 @@ function openMainWindow(): BrowserWindow {
   )
   automations.setWebContents(window.webContents)
   automations.start()
+  incidenciaWatcher?.setWebContents(window.webContents)
+  incidenciaWatcher?.start()
   attachMainWindowServices(
     window,
     store,
@@ -641,6 +645,7 @@ function openMainWindow(): BrowserWindow {
     }
     clearExpectedRendererReload(rendererWebContentsId)
     automations?.setWebContents(null)
+    incidenciaWatcher?.setWebContents(null)
     // Why: detach the agent hook listener on window close so the server
     // never fires into a destroyed webContents during the gap before
     // reopen (e.g. macOS dock re-activation). This also ensures the
@@ -1230,6 +1235,7 @@ app.whenReady().then(async () => {
   })
   runtime = runtimeService
   automations = new AutomationService(store, { claudeUsage, codexUsage })
+  incidenciaWatcher = new IncidenciaWatcher(store)
   runtimeService.setAutomationService(automations)
   runtimeService.setAccountServices({ claudeAccounts, codexAccounts, rateLimits })
   runtimeService.setCommitMessageAgentEnvironmentResolvers({
