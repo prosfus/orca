@@ -56,13 +56,16 @@ type IncidenciaRow = {
 const INCIDENCIA_COLUMNS = `id, numero, asunto, status, priority, category, "proyectoNombre",
        "clienteNombre", "moduloAfectado", "errorSignature", "createdAt", "updatedAt"`
 
+// Trabe's createdAt is `timestamp without time zone` storing UTC. Compare against
+// a UTC wall-clock string (not a Date param — node-postgres serializes Dates in
+// the process's LOCAL time, shifting the comparison by the local offset) so
+// detection is timezone-independent.
+function toUtcWallClock(ms: number): string {
+  return new Date(ms).toISOString().replace('T', ' ').replace('Z', '')
+}
+
 export function createTrabeDbClient(options: TrabeDbClientOptions): TrabeDbClient {
   const pool = new Pool({ connectionString: options.databaseUrl })
-  // Pin every connection to UTC so cursor comparisons against `timestamp`
-  // columns aren't reinterpreted under the server's local timezone.
-  pool.on('connect', (client) => {
-    void client.query("SET TIME ZONE 'UTC'")
-  })
 
   const toIncidencia = (row: IncidenciaRow): TrabeIncidencia => ({
     // Dedupe downstream must key on `id`: `numero` is only unique per organización.
@@ -90,9 +93,9 @@ export function createTrabeDbClient(options: TrabeDbClientOptions): TrabeDbClien
          FROM "Incidencia"
          WHERE "status" = 'abierta'
            AND "deletedAt" IS NULL
-           AND "createdAt" > $1
+           AND "createdAt" > $1::timestamp
          ORDER BY "createdAt" ASC`,
-        [new Date(sinceCreatedAt)]
+        [toUtcWallClock(sinceCreatedAt)]
       )
       return res.rows.map((row) => ({
         ...toIncidencia(row),
