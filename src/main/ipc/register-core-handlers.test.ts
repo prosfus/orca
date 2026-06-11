@@ -21,6 +21,7 @@ const {
   registerTelemetryHandlersMock,
   registerDiagnosticsHandlersMock,
   registerDiagnosticoHandlersMock,
+  registerCanvasHandlersMock,
   registerShellHandlersMock,
   registerPetHandlersMock,
   registerSessionHandlersMock,
@@ -70,6 +71,7 @@ const {
   registerTelemetryHandlersMock: vi.fn(),
   registerDiagnosticsHandlersMock: vi.fn(),
   registerDiagnosticoHandlersMock: vi.fn(),
+  registerCanvasHandlersMock: vi.fn(),
   registerShellHandlersMock: vi.fn(),
   registerPetHandlersMock: vi.fn(),
   registerSessionHandlersMock: vi.fn(),
@@ -198,6 +200,10 @@ vi.mock('./diagnosticos', () => ({
   registerDiagnosticoHandlers: registerDiagnosticoHandlersMock
 }))
 
+vi.mock('./canvas', () => ({
+  registerCanvasHandlers: registerCanvasHandlersMock
+}))
+
 vi.mock('./shell', () => ({
   registerShellHandlers: registerShellHandlersMock
 }))
@@ -310,6 +316,7 @@ describe('registerCoreHandlers', () => {
     registerTelemetryHandlersMock.mockReset()
     registerDiagnosticsHandlersMock.mockReset()
     registerDiagnosticoHandlersMock.mockReset()
+    registerCanvasHandlersMock.mockReset()
     registerShellHandlersMock.mockReset()
     registerPetHandlersMock.mockReset()
     registerSessionHandlersMock.mockReset()
