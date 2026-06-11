@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
 import type { Store } from '../persistence'
 import type { Diagnostico } from '../../shared/types'
+import { runHeadlessDiagnostic, type RunHeadlessDiagnosticArgs } from '../trabe/diagnostic-runner'
 
 // Why: Trabe diagnosticos are ephemeral launch records persisted in the
 // PersistedState JSON, mirroring the AutomationRun IPC surface.
@@ -31,6 +32,13 @@ export function registerDiagnosticoHandlers(store: Store, mainWindow: BrowserWin
     }
     store.setWorktreeLineage(args.worktreeId, { ...existing, origin: 'incidencia' })
   })
+  // Run the diagnostic agent headlessly (reliable completion + harvest); resolves
+  // when the agent exits and the report has been stored.
+  ipcMain.handle(
+    'diagnosticos:runAgent',
+    (_event, args: RunHeadlessDiagnosticArgs): Promise<void> =>
+      runHeadlessDiagnostic(store, () => notifyDiagnosticosChanged(mainWindow), args)
+  )
 }
 
 // Exported so the watcher and diagnostic pipeline (other phases) can signal

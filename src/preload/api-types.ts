@@ -2489,6 +2489,15 @@ export type PreloadApi = {
     onDispatchRequested: (callback: (request: DiagnosticoDispatchRequest) => void) => () => void
     rendererReady: () => Promise<void>
     dispatchSettled: (diagnosticoId: string) => Promise<void>
+    /** Run the diagnostic agent headlessly; resolves when it exits and the
+     *  report has been harvested into the Diagnostico. */
+    runAgent: (args: {
+      diagnosticoId: string
+      agentCli: Diagnostico['agentCli']
+      prompt: string
+      worktreePath: string
+      envFilePath: string
+    }) => Promise<void>
   }
   wsl: {
     isAvailable: () => Promise<boolean>
