@@ -8,7 +8,6 @@ import {
   AlertCircle,
   ArrowDownUp,
   ArrowRight,
-  Building2,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -129,6 +128,7 @@ import {
 import JiraIssueWorkspace from '@/components/JiraIssueWorkspace'
 import TrabeIncidenciaWorkspace from '@/components/TrabeIncidenciaWorkspace'
 import { JiraIcon } from '@/components/icons/JiraIcon'
+import { TrabeIcon } from '@/components/icons/TrabeIcon'
 import { cn } from '@/lib/utils'
 import {
   getLinkedWorkItemSuggestedName,
@@ -338,7 +338,7 @@ const SOURCE_OPTIONS: SourceOption[] = [
   {
     id: 'trabe',
     label: translate('auto.components.TaskPage.trabe.label', 'Trabe'),
-    Icon: ({ className }) => <Building2 className={className} />
+    Icon: ({ className }) => <TrabeIcon className={className} />
   }
 ]
 
@@ -6464,7 +6464,13 @@ export default function TaskPage(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [taskSource, trabeStatus.connected, trabeRefreshNonce, taskResumeApplied, listTrabeIncidencias])
+  }, [
+    taskSource,
+    trabeStatus.connected,
+    trabeRefreshNonce,
+    taskResumeApplied,
+    listTrabeIncidencias
+  ])
 
   // Why: keep the detail sheet consistent with the visible list — if the
   // selected incidencia falls out of the refreshed list, close the sheet.
@@ -8545,7 +8551,7 @@ export default function TaskPage(): React.JSX.Element {
               </div>
             ) : !trabeStatus.connected ? (
               <div className="mt-4 flex flex-col items-center justify-center rounded-md border border-border/50 bg-muted/50 px-6 py-14 text-center shadow-sm">
-                <Building2 className="mb-4 size-8 text-muted-foreground/60" />
+                <TrabeIcon className="mb-4 size-8 text-muted-foreground/60" />
                 <p className="text-base font-medium text-foreground">
                   {translate(
                     'auto.components.TaskPage.trabe.notReachable',

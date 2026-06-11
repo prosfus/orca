@@ -1,4 +1,4 @@
-import { Building2, Check, Github, Gitlab } from 'lucide-react'
+import { Check, Github, Gitlab } from 'lucide-react'
 import type { GlobalSettings, TaskProvider } from '../../../../shared/types'
 import {
   TASK_PROVIDERS,
@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils'
 import { JiraIcon } from '@/components/icons/JiraIcon'
 import { LinearIcon } from '@/components/icons/LinearIcon'
+import { TrabeIcon } from '@/components/icons/TrabeIcon'
 import { Label } from '../ui/label'
 import { SearchableSetting } from './SearchableSetting'
 import { SettingsSubsectionHeader } from './SettingsFormControls'
@@ -66,7 +67,7 @@ const TASK_PROVIDER_OPTIONS: readonly {
     label: 'Trabe',
     description:
       'Muestra Trabe (incidencias de soporte) en el selector de Tasks y los accesos del sidebar.',
-    Icon: ({ className }) => <Building2 className={className} />
+    Icon: ({ className }) => <TrabeIcon className={className} />
   }
 ]
 

@@ -99,7 +99,13 @@ export class IncidenciaWatcher {
     })
     try {
       const settings = this.store.getSettings()
-      const cursor = settings.trabeLastSeenIncidenciaCreatedAt ?? 0
+      // First activation: baseline the cursor at "now" so we only diagnose
+      // incidencias created after enabling, never the whole open backlog.
+      if (settings.trabeLastSeenIncidenciaCreatedAt === undefined) {
+        this.store.updateSettings({ trabeLastSeenIncidenciaCreatedAt: Date.now() })
+        return
+      }
+      const cursor = settings.trabeLastSeenIncidenciaCreatedAt
       const agentCli = settings.diagnosticoAgent ?? 'claude'
       const rows = await client.listNewIncidencias(cursor)
       let maxCreatedAt = cursor
