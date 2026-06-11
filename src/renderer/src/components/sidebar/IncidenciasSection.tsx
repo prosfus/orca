@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from 'react'
-import { Stethoscope, FileText } from 'lucide-react'
+import { Stethoscope, FileText, SquareTerminal } from 'lucide-react'
 import type { Diagnostico } from '../../../../shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
 import CommentMarkdown from './CommentMarkdown'
+import { activateWorktreeFromSidebar } from '@/lib/sidebar-worktree-activation'
 import { cn } from '@/lib/utils'
 
 // Why: mirrors the WorktreeCardMetadataStatusBadges tone recipe so diagnostic
@@ -26,34 +33,63 @@ const STATUS_META: Record<Diagnostico['status'], { label: string; tone: string }
 
 function IncidenciaRow({
   diagnostico,
-  onVerInforme
+  onVerInforme,
+  onOpenConsole
 }: {
   diagnostico: Diagnostico
   onVerInforme: (diagnostico: Diagnostico) => void
+  onOpenConsole: (worktreeId: string) => void
 }): React.JSX.Element {
   const status = STATUS_META[diagnostico.status]
+  // While investigating the worktree is live, so the row opens the agent's
+  // console; once it finishes the worktree is gone and only the report remains.
+  const liveWorktreeId = diagnostico.status === 'investigating' ? diagnostico.worktreeId : null
+  const canVerInforme = diagnostico.markdown.length > 0
+  const handleRowClick = (): void => {
+    if (liveWorktreeId) {
+      onOpenConsole(liveWorktreeId)
+    } else if (canVerInforme) {
+      onVerInforme(diagnostico)
+    }
+  }
   return (
     <div className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 hover:bg-worktree-sidebar-accent">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs text-foreground">
-          <span className="text-muted-foreground">#{diagnostico.incidenciaNumero}</span>{' '}
-          {diagnostico.incidenciaAsunto}
-        </div>
-      </div>
+      <button
+        type="button"
+        disabled={!liveWorktreeId && !canVerInforme}
+        onClick={handleRowClick}
+        className="min-w-0 flex-1 truncate text-left text-xs text-foreground enabled:hover:underline disabled:cursor-default"
+      >
+        <span className="text-muted-foreground">#{diagnostico.incidenciaNumero}</span>{' '}
+        {diagnostico.incidenciaAsunto}
+      </button>
       <Badge variant="outline" className={cn('px-1.5 py-0 text-[10px]', status.tone)}>
         {status.label}
       </Badge>
-      <Button
-        type="button"
-        variant="ghost"
-        size="xs"
-        className="shrink-0 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
-        disabled={!diagnostico.markdown}
-        onClick={() => onVerInforme(diagnostico)}
-      >
-        <FileText className="size-3" />
-        Ver informe
-      </Button>
+      {liveWorktreeId ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="shrink-0 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+          onClick={() => onOpenConsole(liveWorktreeId)}
+        >
+          <SquareTerminal className="size-3" />
+          Ver agente
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          className="shrink-0 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+          disabled={!canVerInforme}
+          onClick={() => onVerInforme(diagnostico)}
+        >
+          <FileText className="size-3" />
+          Ver informe
+        </Button>
+      )}
     </div>
   )
 }
@@ -100,6 +136,7 @@ function IncidenciasSection(): React.JSX.Element | null {
             key={diagnostico.id}
             diagnostico={diagnostico}
             onVerInforme={setOpenDiagnostico}
+            onOpenConsole={activateWorktreeFromSidebar}
           />
         ))}
       </div>
