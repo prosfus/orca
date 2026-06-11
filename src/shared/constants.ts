@@ -390,6 +390,7 @@ export function getDefaultPersistedState(homedir: string): PersistedState {
     legacyPaneKeyAliasEntries: [],
     automations: [],
     automationRuns: [],
+    diagnosticos: [],
     onboarding: getDefaultOnboardingState()
   }
 }

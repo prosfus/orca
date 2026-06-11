@@ -1,6 +1,12 @@
-export type TaskProvider = 'github' | 'gitlab' | 'linear' | 'jira'
+export type TaskProvider = 'github' | 'gitlab' | 'linear' | 'jira' | 'trabe'
 
-export const TASK_PROVIDERS: readonly TaskProvider[] = ['github', 'gitlab', 'linear', 'jira']
+export const TASK_PROVIDERS: readonly TaskProvider[] = [
+  'github',
+  'gitlab',
+  'linear',
+  'jira',
+  'trabe'
+]
 
 const TASK_PROVIDER_SET = new Set<TaskProvider>(TASK_PROVIDERS)
 
@@ -55,6 +61,9 @@ export function normalizeVisibleTaskProviders(value: unknown): TaskProvider[] {
 export type TaskProviderAvailability = {
   gitlabInstalled: boolean
   linearConnected: boolean
+  // Why: Trabe only becomes a selectable task source once its read-only DB
+  // connection (.env with DATABASE_URL) is configured. Undefined = not yet set.
+  trabeConfigured?: boolean
 }
 
 export function filterAvailableTaskProviders(
@@ -104,6 +113,11 @@ function isTaskProviderAvailable(
   // when disconnected would remove the entry point for first-time setup.
   if (provider === 'jira') {
     return true
+  }
+  // Why: Trabe reads incidencias from a configured read-only DB; hide it until
+  // that connection exists so the Tasks surface never selects an empty source.
+  if (provider === 'trabe') {
+    return availability.trabeConfigured === true
   }
   return availability.linearConnected
 }

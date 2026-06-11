@@ -30,5 +30,9 @@ export function shouldHideTaskPageListChrome({
       return hasJiraDetail
     case 'linear':
       return hasLinearIssueDetail || hasLinearProjectContext || hasLinearViewContext
+    case 'trabe':
+      // Phase 7 wires a Trabe detail dialog; until then a trabe selection never
+      // hides the list chrome.
+      return false
   }
 }

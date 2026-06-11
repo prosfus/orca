@@ -373,7 +373,9 @@ export type DetectedWorktreeListResult = {
   worktrees: DetectedWorktree[]
 }
 
-export type WorktreeLineageOrigin = 'orchestration' | 'cli' | 'manual'
+// 'incidencia' worktrees are ephemeral Trabe diagnostic runs; hidden from the
+// Workspaces list (see docs/incidencia-diagnostics.md §6A).
+export type WorktreeLineageOrigin = 'orchestration' | 'cli' | 'manual' | 'incidencia'
 export type WorktreeLineageCaptureConfidence = 'explicit' | 'inferred'
 export type WorktreeLineageCaptureSource =
   | 'explicit-cli-flag'
@@ -2236,6 +2238,23 @@ export type GlobalSettings = {
    *  Same nullable-array pattern as `defaultRepoSelection`: `null` = sticky-all,
    *  `string[]` = frozen subset of team IDs. */
   defaultLinearTeamSelection: string[] | null
+  // ─── Trabe incidencia diagnostics (docs/incidencia-diagnostics.md §6.2) ──
+  /** Path to the .env holding Trabe's DATABASE_URL (read-only DB access). */
+  trabeEnvFilePath?: string
+  /** Path to the Trabe repo, used to create ephemeral diagnostic worktrees. */
+  trabeRepoPath?: string
+  /** Base branch diagnosed against; defaults to the repo's default branch. */
+  trabeBaseBranch?: string
+  /** URL base for TrabeIncidencia.url deep-links into Trabe. */
+  trabeDeepLinkBase?: string
+  /** CLI used for diagnostic agents (dispatch is automatic; no per-run picker). */
+  diagnosticoAgent?: TuiAgent
+  /** Max concurrent diagnostic sessions (anti-avalanche queue limit; default 2). */
+  diagnosticoConcurrency?: number
+  /** Poll interval for detecting new incidencias, in ms (default 30000). */
+  diagnosticoPollIntervalMs?: number
+  /** High-water mark cursor: createdAt (ms) of the last seen incidencia. */
+  trabeLastSeenIncidenciaCreatedAt?: number
   /** Session cookie for OpenCode Go rate-limit fetching. Stored encrypted. */
   opencodeSessionCookie: string
   /** Optional workspace ID override for OpenCode Go. When set, skips the
@@ -2852,6 +2871,40 @@ export type LegacyPaneKeyAliasEntry = {
   updatedAt: number
 }
 
+// ─── Trabe incidencia diagnostics ───────────────────────────────────
+// Read-only bridge from Trabe (the LiBuilding ERP) into Orca. See
+// docs/incidencia-diagnostics.md and docs/adr/0002-0003.
+
+/** Read-only work item from the 'trabe' task provider (Tasks surface A). */
+export type TrabeIncidencia = {
+  id: string
+  numero: number
+  title: string // ← Incidencia.asunto
+  state: string // ← Incidencia.status
+  priority: string
+  category: string | null
+  labels: string[]
+  proyectoNombre: string | null
+  empresaNombre: string | null
+  updatedAt: string
+  url: string // deep-link to Trabe (configurable base + /incidencias/<numero>)
+}
+
+/** Ephemeral diagnostic run record; mirrors AutomationRun. The markdown is the
+ *  artifact — the worktree is removed once the report is harvested. */
+export type Diagnostico = {
+  id: string
+  incidenciaNumero: number
+  incidenciaAsunto: string
+  status: 'investigating' | 'ready' | 'failed'
+  agentCli: TuiAgent
+  markdown: string // empty until harvested
+  worktreeId: string | null
+  createdAt: number
+  finishedAt: number | null
+  error: string | null
+}
+
 // ─── Persistence shape ──────────────────────────────────────────────
 export type PersistedState = {
   schemaVersion: number
@@ -2875,6 +2928,7 @@ export type PersistedState = {
   legacyPaneKeyAliasEntries: LegacyPaneKeyAliasEntry[]
   automations: Automation[]
   automationRuns: AutomationRun[]
+  diagnosticos: Diagnostico[]
   onboarding: OnboardingState
 }
 

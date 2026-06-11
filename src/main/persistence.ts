@@ -2167,6 +2167,7 @@ export class Store {
           ),
           automations: Array.isArray(parsed.automations) ? parsed.automations : [],
           automationRuns: Array.isArray(parsed.automationRuns) ? parsed.automationRuns : [],
+          diagnosticos: Array.isArray(parsed.diagnosticos) ? parsed.diagnosticos : [],
           onboarding: normalizedOnboarding
         }
       }
