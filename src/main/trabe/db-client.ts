@@ -1,8 +1,13 @@
 // Read-only Postgres client for Trabe (the LiBuilding ERP). Orca never writes
 // to Trabe's DB — only parameterized SELECTs (docs/incidencia-diagnostics.md).
 import { readFileSync } from 'node:fs'
-import { Pool } from 'pg'
+import { Pool, types } from 'pg'
 import type { TrabeIncidencia } from '../../shared/types'
+
+// Trabe stores UTC in `timestamp without time zone` columns. Parse OID 1114 as
+// UTC so reads don't shift by the Node process's local offset (the classic
+// node-postgres "off by my timezone" bug). 1184 (timestamptz) is already safe.
+types.setTypeParser(1114, (value) => new Date(`${value.replace(' ', 'T')}Z`))
 
 export type TrabeDbClientOptions = { databaseUrl: string; deepLinkBase?: string }
 
@@ -53,6 +58,11 @@ const INCIDENCIA_COLUMNS = `id, numero, asunto, status, priority, category, "pro
 
 export function createTrabeDbClient(options: TrabeDbClientOptions): TrabeDbClient {
   const pool = new Pool({ connectionString: options.databaseUrl })
+  // Pin every connection to UTC so cursor comparisons against `timestamp`
+  // columns aren't reinterpreted under the server's local timezone.
+  pool.on('connect', (client) => {
+    void client.query("SET TIME ZONE 'UTC'")
+  })
 
   const toIncidencia = (row: IncidenciaRow): TrabeIncidencia => ({
     // Dedupe downstream must key on `id`: `numero` is only unique per organización.
