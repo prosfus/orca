@@ -45,6 +45,13 @@ export class IncidenciaWatcher {
       'diagnosticos:triggerLatest',
       (): Promise<{ ok: boolean; error?: string }> => this.triggerLatestOpen()
     )
+    // Per-row trigger for a specific incidencia (the "Diagnosticar" action in
+    // the Tasks table), bypassing the cursor like the latest-open trigger.
+    ipcMain.handle(
+      'diagnosticos:triggerForIncidencia',
+      (_event, args: { numero: number }): Promise<{ ok: boolean; error?: string }> =>
+        this.triggerForNumero(args?.numero)
+    )
   }
 
   setWebContents(webContents: WebContents | null): void {
@@ -207,6 +214,41 @@ export class IncidenciaWatcher {
       return { ok: true }
     } catch (err) {
       console.error('[incidencia-watcher] manual trigger failed:', err)
+      return { ok: false, error: String(err) }
+    } finally {
+      await client.close()
+    }
+  }
+
+  // Manually diagnose one specific incidencia by número (on-demand, bypassing
+  // the cursor). Used by the per-row "Diagnosticar" action in the Tasks table.
+  async triggerForNumero(numero: number): Promise<{ ok: boolean; error?: string }> {
+    if (typeof numero !== 'number' || !Number.isFinite(numero)) {
+      return { ok: false, error: 'Número de incidencia inválido.' }
+    }
+    const config = this.resolveConfig()
+    if (!config) {
+      return {
+        ok: false,
+        error: 'Trabe no está configurado: revisa la ruta del .env y del repo en Ajustes.'
+      }
+    }
+    const settings = this.store.getSettings()
+    const client = createTrabeDbClient({
+      databaseUrl: config.databaseUrl,
+      deepLinkBase: settings.trabeDeepLinkBase
+    })
+    try {
+      const incidencia = await client.getIncidencia(numero)
+      if (!incidencia) {
+        return { ok: false, error: `No se encontró la incidencia #${numero}.` }
+      }
+      this.seenIncidenciaIds.add(incidencia.id)
+      await this.enqueueDiagnostic(incidencia, config, settings, client)
+      this.drainQueue()
+      return { ok: true }
+    } catch (err) {
+      console.error('[incidencia-watcher] trigger for numero failed:', err)
       return { ok: false, error: String(err) }
     } finally {
       await client.close()

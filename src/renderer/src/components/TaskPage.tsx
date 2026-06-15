@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDot,
+  Clipboard,
   Clock3,
   EllipsisVertical,
   ExternalLink,
@@ -32,6 +33,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Stethoscope,
   Users,
   X,
   FolderKanban,
@@ -6642,6 +6644,79 @@ export default function TaskPage(): React.JSX.Element {
     [openComposerForJiraItem]
   )
 
+  // Trabe per-row actions (the Tasks table mirrors the sidebar Incidencias menu).
+  // Diagnose a specific incidencia on-demand via the headless agent pipeline.
+  const diagnoseTrabeIncidencia = useCallback((incidencia: TrabeIncidencia): void => {
+    void window.api.diagnosticos.triggerForIncidencia(incidencia.numero).then((res) => {
+      if (res.ok) {
+        toast.success(
+          translate(
+            'auto.components.TaskPage.trabe.diagnoseStarted',
+            'Diagnóstico lanzado para la incidencia #{{value0}}.',
+            { value0: incidencia.numero }
+          )
+        )
+      } else {
+        toast.error(
+          res.error ??
+            translate(
+              'auto.components.TaskPage.trabe.diagnoseFailed',
+              'No se pudo lanzar el diagnóstico.'
+            )
+        )
+      }
+    })
+  }, [])
+
+  // Promote an incidencia straight to a workspace seeded from the Trabe repo +
+  // base branch, mirroring the sidebar Incidencias "Crear workspace" flow.
+  const createWorkspaceFromTrabe = useCallback(
+    (incidencia: TrabeIncidencia): void => {
+      const normalize = (value: string): string =>
+        value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+      const target = settings?.trabeRepoPath ? normalize(settings.trabeRepoPath) : null
+      const repo = target ? repos.find((entry) => normalize(entry.path) === target) : null
+      if (!repo) {
+        toast.error(
+          translate(
+            'auto.components.TaskPage.trabe.repoMissing',
+            'No se encontró el repo de Trabe registrado en Orca.'
+          )
+        )
+        return
+      }
+      openModal('new-workspace-composer', {
+        initialRepoId: repo.id,
+        prefilledName: `inc-${incidencia.numero}-fix`,
+        ...(settings?.trabeBaseBranch ? { initialBaseBranch: settings.trabeBaseBranch } : {}),
+        telemetrySource: 'sidebar',
+        linkedWorkItem: {
+          type: 'issue',
+          number: incidencia.numero,
+          title: incidencia.title,
+          url: incidencia.url,
+          linkedContext: {
+            provider: 'trabe',
+            version: 1,
+            renderedText: [
+              `Incidencia #${incidencia.numero} — ${incidencia.title}`,
+              '',
+              'Resuelve esta incidencia de soporte.'
+            ].join('\n')
+          }
+        }
+      })
+    },
+    [openModal, repos, settings?.trabeRepoPath, settings?.trabeBaseBranch]
+  )
+
+  const copyTrabeText = useCallback((text: string, successKey: string, label: string): void => {
+    void window.api.ui
+      .writeClipboardText(text)
+      .then(() => toast.success(translate(successKey, label)))
+      .catch(() => {})
+  }, [])
+
   const handleJiraConnect = useCallback(async (): Promise<void> => {
     const siteUrl = jiraSiteUrlDraft.trim()
     const email = jiraEmailDraft.trim()
@@ -8583,7 +8658,7 @@ export default function TaskPage(): React.JSX.Element {
                   </div>
                 </div>
 
-                <div className="grid h-8 flex-none grid-cols-[72px_minmax(0,1fr)_110px_96px_80px] items-center gap-3 border-b border-border/50 bg-muted/25 px-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground max-md:!hidden lg:grid-cols-[72px_minmax(0,1.25fr)_110px_110px_160px_96px_56px]">
+                <div className="grid h-8 flex-none grid-cols-[72px_minmax(0,1fr)_110px_96px_80px] items-center gap-3 border-b border-border/50 bg-muted/25 px-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground max-md:!hidden lg:grid-cols-[72px_minmax(0,1.25fr)_110px_110px_160px_96px_84px]">
                   <span>{translate('auto.components.TaskPage.trabe.numero', 'Nº')}</span>
                   <span>
                     {translate('auto.components.TaskPage.trabe.incidencia', 'Incidencia')}
@@ -8657,7 +8732,7 @@ export default function TaskPage(): React.JSX.Element {
                             }
                           }}
                           className={cn(
-                            'group/row grid min-h-12 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:grid-cols-[72px_minmax(0,1fr)_110px_96px_80px] lg:grid-cols-[72px_minmax(0,1.25fr)_110px_110px_160px_96px_56px]',
+                            'group/row grid min-h-12 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:grid-cols-[72px_minmax(0,1fr)_110px_96px_80px] lg:grid-cols-[72px_minmax(0,1.25fr)_110px_110px_160px_96px_84px]',
                             selected && 'bg-accent'
                           )}
                         >
@@ -8725,33 +8800,105 @@ export default function TaskPage(): React.JSX.Element {
                           </Tooltip>
 
                           <div className="flex shrink-0 items-center justify-end gap-1 max-lg:!hidden md:opacity-0 md:transition-opacity md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100">
-                            {incidencia.url ? (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon-xs"
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      window.api.shell.openUrl(incidencia.url)
-                                    }}
-                                    aria-label={translate(
-                                      'auto.components.TaskPage.trabe.openExternal',
-                                      'Open #{{value0}} in Trabe',
-                                      { value0: incidencia.numero }
-                                    )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    diagnoseTrabeIncidencia(incidencia)
+                                  }}
+                                  aria-label={translate(
+                                    'auto.components.TaskPage.trabe.diagnose',
+                                    'Diagnose #{{value0}}',
+                                    { value0: incidencia.numero }
+                                  )}
+                                >
+                                  <Stethoscope className="size-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" sideOffset={6}>
+                                {translate(
+                                  'auto.components.TaskPage.trabe.diagnoseTip',
+                                  'Diagnosticar incidencia'
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  onClick={(event) => event.stopPropagation()}
+                                  aria-label={translate(
+                                    'auto.components.TaskPage.trabe.moreActions',
+                                    'More actions'
+                                  )}
+                                >
+                                  <EllipsisVertical className="size-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="end"
+                                className="w-48"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <DropdownMenuItem
+                                  onSelect={() => createWorkspaceFromTrabe(incidencia)}
+                                >
+                                  <ArrowRight className="size-3.5" />
+                                  {translate(
+                                    'auto.components.TaskPage.trabe.startWorkspace',
+                                    'Crear workspace'
+                                  )}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {incidencia.url ? (
+                                  <DropdownMenuItem
+                                    onSelect={() => window.api.shell.openUrl(incidencia.url)}
                                   >
                                     <ExternalLink className="size-3.5" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" sideOffset={6}>
+                                    {translate(
+                                      'auto.components.TaskPage.trabe.openInTrabe',
+                                      'Open in Trabe'
+                                    )}
+                                  </DropdownMenuItem>
+                                ) : null}
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    copyTrabeText(
+                                      String(incidencia.numero),
+                                      'auto.components.TaskPage.trabe.numeroCopied',
+                                      'Número copiado'
+                                    )
+                                  }
+                                >
+                                  <Clipboard className="size-3.5" />
                                   {translate(
-                                    'auto.components.TaskPage.trabe.openInTrabe',
-                                    'Open in Trabe'
+                                    'auto.components.TaskPage.trabe.copyNumero',
+                                    'Copiar número'
                                   )}
-                                </TooltipContent>
-                              </Tooltip>
-                            ) : null}
+                                </DropdownMenuItem>
+                                {incidencia.url ? (
+                                  <DropdownMenuItem
+                                    onSelect={() =>
+                                      copyTrabeText(
+                                        incidencia.url,
+                                        'auto.components.TaskPage.trabe.urlCopied',
+                                        'URL copiada'
+                                      )
+                                    }
+                                  >
+                                    <Clipboard className="size-3.5" />
+                                    {translate(
+                                      'auto.components.TaskPage.trabe.copyUrl',
+                                      'Copiar URL'
+                                    )}
+                                  </DropdownMenuItem>
+                                ) : null}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       )

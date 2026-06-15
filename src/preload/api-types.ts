@@ -2506,6 +2506,8 @@ export type PreloadApi = {
     cancel: (id: string) => Promise<void>
     /** Manually diagnose the most recent open incidencia (on-demand). */
     triggerLatest: () => Promise<{ ok: boolean; error?: string }>
+    /** Manually diagnose a specific incidencia by número (on-demand). */
+    triggerForIncidencia: (numero: number) => Promise<{ ok: boolean; error?: string }>
   }
   wsl: {
     isAvailable: () => Promise<boolean>

@@ -3592,7 +3592,9 @@ const api = {
     }): Promise<void> => ipcRenderer.invoke('diagnosticos:runAgent', args),
     cancel: (id: string): Promise<void> => ipcRenderer.invoke('diagnosticos:cancel', { id }),
     triggerLatest: (): Promise<{ ok: boolean; error?: string }> =>
-      ipcRenderer.invoke('diagnosticos:triggerLatest')
+      ipcRenderer.invoke('diagnosticos:triggerLatest'),
+    triggerForIncidencia: (numero: number): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('diagnosticos:triggerForIncidencia', { numero })
   },
 
   e2e: {
