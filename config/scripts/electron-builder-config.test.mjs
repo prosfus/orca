@@ -157,6 +157,14 @@ describe('electron-builder config', () => {
     ).toBe(true)
   })
 
+  it('includes pg in the packaged runtime closure', () => {
+    // Why: Trabe DB access runs in the packaged main process and uses pg via a
+    // bare require/import; the package must be copied next to app.asar.
+    const packaged = createPackagedRuntimeNodeModuleResources()
+    const packagedTargets = packaged.map((resource) => resource.to)
+    expect(packagedTargets).toContain(join('node_modules', 'pg'))
+  })
+
   it('prunes non-target @parcel/watcher platform subpackages from packaged runtime resources', async () => {
     const resourcesDir = await mkdtemp(join(tmpdir(), 'orca-parcel-watcher-prune-'))
     try {
