@@ -7,6 +7,20 @@ import Database from '../../sqlite/sync-database'
 import { OrchestrationDb } from './db'
 import type { MessageType } from './db'
 
+// Why: on Windows rmSync can't delete a SQLite file whose handle is still open
+// (EPERM). The OS reclaims the temp dir later, so tolerate that on cleanup
+// rather than failing the test on a teardown race.
+function removeTempDir(dir: string | undefined): void {
+  if (!dir) {
+    return
+  }
+  try {
+    rmSync(dir, { recursive: true, force: true })
+  } catch {
+    /* temp dir reclaimed by the OS later */
+  }
+}
+
 describe('OrchestrationDb', () => {
   let db: OrchestrationDb
 
@@ -680,9 +694,7 @@ describe('OrchestrationDb', () => {
     let tempDir: string
 
     afterEach(() => {
-      if (tempDir) {
-        rmSync(tempDir, { recursive: true, force: true })
-      }
+      removeTempDir(tempDir)
     })
 
     function createV1Snapshot(): string {
@@ -827,6 +839,90 @@ describe('OrchestrationDb', () => {
       ).not.toThrow()
       const inbox = second.getInbox(10)
       expect(inbox.length).toBeGreaterThanOrEqual(2)
+    })
+  })
+
+  describe('phases', () => {
+    it('creates phases with auto-incrementing order and lists them in order', () => {
+      const d = createDb()
+      const plan = d.createPhase({ label: 'Plan', assignedAgent: 'claude' })
+      const backend = d.createPhase({ label: 'Backend', assignedAgent: 'codex' })
+      expect(plan.id).toMatch(/^phase_/)
+      expect(plan.order_index).toBe(0)
+      expect(backend.order_index).toBe(1)
+      expect(plan.assigned_agent).toBe('claude')
+
+      const phases = d.listPhases()
+      expect(phases.map((p) => p.label)).toEqual(['Plan', 'Backend'])
+    })
+
+    it('creates a task inside a phase and reads its phase_id', () => {
+      const d = createDb()
+      const phase = d.createPhase({ label: 'Backend' })
+      const task = d.createTask({ spec: 'API login', phaseId: phase.id })
+      expect(task.phase_id).toBe(phase.id)
+      expect(d.getTask(task.id)?.phase_id).toBe(phase.id)
+    })
+
+    it('reassigns a task to another phase', () => {
+      const d = createDb()
+      const a = d.createPhase({ label: 'A' })
+      const b = d.createPhase({ label: 'B' })
+      const task = d.createTask({ spec: 't', phaseId: a.id })
+      const moved = d.setTaskPhase(task.id, b.id)
+      expect(moved?.phase_id).toBe(b.id)
+    })
+
+    it('updatePhase patches only the provided fields', () => {
+      const d = createDb()
+      const phase = d.createPhase({ label: 'UI', assignedAgent: 'claude' })
+      const updated = d.updatePhase(phase.id, { assignedAgent: 'droid' })
+      expect(updated?.label).toBe('UI')
+      expect(updated?.assigned_agent).toBe('droid')
+    })
+
+    it('removing a phase detaches its tasks but keeps them', () => {
+      const d = createDb()
+      const phase = d.createPhase({ label: 'Temp' })
+      const task = d.createTask({ spec: 'survives', phaseId: phase.id })
+      d.removePhase(phase.id)
+      expect(d.getPhase(phase.id)).toBeUndefined()
+      const survivor = d.getTask(task.id)
+      expect(survivor?.spec).toBe('survives')
+      expect(survivor?.phase_id).toBeNull()
+    })
+
+    it('migrates a v4 DB by adding tasks.phase_id without losing data', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'orch-phase-mig-'))
+      const path = join(dir, 'v4.db')
+      const raw = new Database(path)
+      raw.exec(`
+        CREATE TABLE tasks (
+          id TEXT PRIMARY KEY,
+          parent_id TEXT,
+          created_by_terminal_handle TEXT,
+          spec TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          deps TEXT NOT NULL DEFAULT '[]',
+          result TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          completed_at TEXT
+        );
+        INSERT INTO tasks (id, spec, status, deps) VALUES ('task_old', 'legacy', 'ready', '[]');
+      `)
+      raw.pragma('user_version = 4')
+      raw.close()
+
+      const migrated = new OrchestrationDb(path)
+      db = migrated
+      try {
+        const phase = migrated.createPhase({ label: 'Backend' })
+        const updated = migrated.setTaskPhase('task_old', phase.id)
+        expect(updated?.phase_id).toBe(phase.id)
+        expect(migrated.getTask('task_old')?.spec).toBe('legacy')
+      } finally {
+        removeTempDir(dir)
+      }
     })
   })
 })

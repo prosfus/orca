@@ -69,8 +69,8 @@ export const ORCHESTRATION_COMMAND_SPECS: CommandSpec[] = [
     path: ['orchestration', 'task-create'],
     summary: 'Create an orchestration task',
     usage:
-      'orca orchestration task-create --spec <text> [--deps <json_array>] [--parent <task_id>] [--json]',
-    allowedFlags: [...GLOBAL_FLAGS, 'spec', 'deps', 'parent']
+      'orca orchestration task-create --spec <text> [--deps <json_array>] [--parent <task_id>] [--phase <phase_id>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'spec', 'deps', 'parent', 'phase']
   },
   {
     path: ['orchestration', 'task-list'],
@@ -85,6 +85,37 @@ export const ORCHESTRATION_COMMAND_SPECS: CommandSpec[] = [
       'orca orchestration task-update --id <task_id> --status <status> [--result <json>] [--json]',
     allowedFlags: [...GLOBAL_FLAGS, 'id', 'status', 'result'],
     notes: ['Valid --status values: pending, ready, dispatched, completed, failed, blocked.']
+  },
+  {
+    path: ['orchestration', 'phase-create'],
+    summary: 'Create a Plan phase (an ordered, agent-assigned group of tasks)',
+    usage: 'orca orchestration phase-create --label <text> [--agent <type>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'label', 'agent']
+  },
+  {
+    path: ['orchestration', 'phase-list'],
+    summary: 'List Plan phases in order',
+    usage: 'orca orchestration phase-list [--json]',
+    allowedFlags: [...GLOBAL_FLAGS]
+  },
+  {
+    path: ['orchestration', 'phase-update'],
+    summary: 'Update a phase label or assigned agent',
+    usage:
+      'orca orchestration phase-update --id <phase_id> [--label <text>] [--agent <type>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'id', 'label', 'agent']
+  },
+  {
+    path: ['orchestration', 'phase-remove'],
+    summary: 'Remove a phase (its tasks survive, detached)',
+    usage: 'orca orchestration phase-remove --id <phase_id> [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'id']
+  },
+  {
+    path: ['orchestration', 'task-set-phase'],
+    summary: 'Assign a task to a phase (omit --phase to detach)',
+    usage: 'orca orchestration task-set-phase --task <task_id> [--phase <phase_id>] [--json]',
+    allowedFlags: [...GLOBAL_FLAGS, 'task', 'phase']
   },
   {
     path: ['orchestration', 'dispatch'],

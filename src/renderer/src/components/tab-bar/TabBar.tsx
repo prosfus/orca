@@ -5,7 +5,16 @@
  * more clarity than the ~5 lines of bloat is worth. */
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { SortableContext } from '@dnd-kit/sortable'
-import { FilePlus, FileText, Globe, Plus, Smartphone, TerminalSquare, Workflow } from 'lucide-react'
+import {
+  FilePlus,
+  FileText,
+  Globe,
+  Network,
+  Plus,
+  Smartphone,
+  TerminalSquare,
+  Workflow
+} from 'lucide-react'
 import { toast } from 'sonner'
 import type {
   BrowserTab as BrowserTabState,
@@ -86,6 +95,7 @@ type TabBarProps = {
   showAgentLaunchItems?: boolean
   onNewFileTab?: () => void
   onNewCanvasTab?: () => void
+  onNewPlanTab?: () => void
   onOpenFileTab?: () => void
   newTabMenuOrder?: 'default' | 'markdown-first'
   onSetCustomTitle: (tabId: string, title: string | null) => void
@@ -202,6 +212,7 @@ function TabBarInner({
   showAgentLaunchItems = true,
   onNewFileTab,
   onNewCanvasTab,
+  onNewPlanTab,
   onOpenFileTab,
   newTabMenuOrder = 'default',
   onSetCustomTitle,
@@ -649,6 +660,16 @@ function TabBarInner({
         New Canvas
       </DropdownMenuItem>
     ) : null
+  const newPlanMenuItem =
+    !terminalOnly && onNewPlanTab ? (
+      <DropdownMenuItem
+        onSelect={onNewPlanTab}
+        className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+      >
+        <Network className="size-4 text-muted-foreground" />
+        New Plan
+      </DropdownMenuItem>
+    ) : null
   const standardCreateMenuItems =
     newTabMenuOrder === 'markdown-first' ? (
       <>
@@ -657,6 +678,7 @@ function TabBarInner({
         {defaultTerminalMenuItems}
         {newBrowserMenuItem}
         {newCanvasMenuItem}
+        {newPlanMenuItem}
         {newSimulatorMenuItem}
       </>
     ) : (
@@ -666,6 +688,7 @@ function TabBarInner({
         {newMarkdownMenuItem}
         {openMarkdownMenuItem}
         {newCanvasMenuItem}
+        {newPlanMenuItem}
         {newSimulatorMenuItem}
       </>
     )

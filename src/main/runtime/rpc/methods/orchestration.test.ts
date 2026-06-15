@@ -47,7 +47,7 @@ describe('orchestration RPC methods', () => {
 
   it('registers all expected methods', () => {
     const registry = buildRegistry(ORCHESTRATION_METHODS)
-    expect(registry.size).toBe(16)
+    expect(registry.size).toBe(21)
     expect(registry.has('orchestration.send')).toBe(true)
     expect(registry.has('orchestration.check')).toBe(true)
     expect(registry.has('orchestration.reply')).toBe(true)
@@ -55,6 +55,11 @@ describe('orchestration RPC methods', () => {
     expect(registry.has('orchestration.taskCreate')).toBe(true)
     expect(registry.has('orchestration.taskList')).toBe(true)
     expect(registry.has('orchestration.taskUpdate')).toBe(true)
+    expect(registry.has('orchestration.phaseCreate')).toBe(true)
+    expect(registry.has('orchestration.phaseList')).toBe(true)
+    expect(registry.has('orchestration.phaseUpdate')).toBe(true)
+    expect(registry.has('orchestration.phaseRemove')).toBe(true)
+    expect(registry.has('orchestration.taskSetPhase')).toBe(true)
     expect(registry.has('orchestration.dispatch')).toBe(true)
     expect(registry.has('orchestration.dispatchShow')).toBe(true)
     expect(registry.has('orchestration.ask')).toBe(true)

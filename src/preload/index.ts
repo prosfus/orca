@@ -8,6 +8,7 @@ import { glApi } from './gitlab'
 import type { AppIdentity } from '../shared/app-identity'
 import type { CanvasMutation } from '../shared/canvas/canvas-mutation'
 import type { CanvasReadResult } from '../shared/canvas/canvas-plan-view'
+import type { PlanReadResult } from '../shared/plan/plan-view'
 import type { CliInstallStatus } from '../shared/cli-install-types'
 import type { AgentHookInstallStatus } from '../shared/agent-hook-types'
 import type { TerminalPaneSplitSource } from '../shared/feature-education-telemetry'
@@ -2268,6 +2269,10 @@ const api = {
       ipcRenderer.invoke('canvas:read', args),
     mutate: (args: { worktreeId: string; mutation: CanvasMutation }): Promise<CanvasReadResult> =>
       ipcRenderer.invoke('canvas:mutate', args)
+  },
+
+  plan: {
+    read: (): Promise<PlanReadResult> => ipcRenderer.invoke('plan:read')
   },
 
   fs: {

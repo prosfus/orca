@@ -287,6 +287,7 @@ export const ORCHESTRATION_HANDLERS: Record<string, CommandHandler> = {
         spec: getRequiredStringFlag(flags, 'spec'),
         deps: getOptionalStringFlag(flags, 'deps'),
         parent: getOptionalStringFlag(flags, 'parent'),
+        phase: getOptionalStringFlag(flags, 'phase'),
         callerTerminalHandle
       }
     )
@@ -340,6 +341,76 @@ export const ORCHESTRATION_HANDLERS: Record<string, CommandHandler> = {
       }
     )
     printResult(result, json, (r) => `Updated ${r.task.id} -> ${r.task.status}`)
+  },
+
+  'orchestration phase-create': async ({ flags, client, json }) => {
+    const result = await client.call<{
+      phase: { id: string; label: string; assigned_agent: string | null }
+    }>('orchestration.phaseCreate', {
+      label: getRequiredStringFlag(flags, 'label'),
+      agent: getOptionalStringFlag(flags, 'agent')
+    })
+    printResult(
+      result,
+      json,
+      (r) =>
+        `Created phase ${r.phase.id} "${r.phase.label}"${
+          r.phase.assigned_agent ? ` -> ${r.phase.assigned_agent}` : ''
+        }`
+    )
+  },
+
+  'orchestration phase-list': async ({ client, json }) => {
+    const result = await client.call<{
+      phases: { id: string; label: string; order_index: number; assigned_agent: string | null }[]
+      count: number
+    }>('orchestration.phaseList', {})
+    printResult(result, json, (r) => {
+      if (r.count === 0) {
+        return 'No phases.'
+      }
+      return r.phases
+        .map(
+          (p) =>
+            `${p.id} [${p.order_index}] "${p.label}"${
+              p.assigned_agent ? ` -> ${p.assigned_agent}` : ''
+            }`
+        )
+        .join('\n')
+    })
+  },
+
+  'orchestration phase-update': async ({ flags, client, json }) => {
+    const result = await client.call<{
+      phase: { id: string; label: string; assigned_agent: string | null }
+    }>('orchestration.phaseUpdate', {
+      id: getRequiredStringFlag(flags, 'id'),
+      label: getOptionalStringFlag(flags, 'label'),
+      agent: getOptionalStringFlag(flags, 'agent')
+    })
+    printResult(result, json, (r) => `Updated phase ${r.phase.id} "${r.phase.label}"`)
+  },
+
+  'orchestration phase-remove': async ({ flags, client, json }) => {
+    const result = await client.call<{ removed: string }>('orchestration.phaseRemove', {
+      id: getRequiredStringFlag(flags, 'id')
+    })
+    printResult(result, json, (r) => `Removed phase ${r.removed}`)
+  },
+
+  'orchestration task-set-phase': async ({ flags, client, json }) => {
+    const result = await client.call<{ task: { id: string; phase_id: string | null } }>(
+      'orchestration.taskSetPhase',
+      {
+        task: getRequiredStringFlag(flags, 'task'),
+        phase: getOptionalStringFlag(flags, 'phase')
+      }
+    )
+    printResult(result, json, (r) =>
+      r.task.phase_id
+        ? `Task ${r.task.id} -> phase ${r.task.phase_id}`
+        : `Task ${r.task.id} detached from phase`
+    )
   },
 
   'orchestration dispatch': async ({ flags, client, cwd, json }) => {

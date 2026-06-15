@@ -12,7 +12,8 @@ import type {
   TaskRow,
   DispatchContextRow,
   DecisionGateRow,
-  CoordinatorRun
+  CoordinatorRun,
+  PhaseRow
 } from './types'
 
 export type {
@@ -26,7 +27,8 @@ export type {
   TaskRow,
   DispatchContextRow,
   DecisionGateRow,
-  CoordinatorRun
+  CoordinatorRun,
+  PhaseRow
 }
 
 function generateId(prefix: string): string {
@@ -38,8 +40,10 @@ function generateId(prefix: string): string {
 // push-on-idle can distinguish queued-but-undelivered from user-acknowledged
 // messages without touching the `read` bit (check-wait PR). v3 → v4 records
 // the terminal that created a task so task-record worktree creation can infer
-// the parent workspace even when no dispatch context exists.
-const SCHEMA_VERSION = 4
+// the parent workspace even when no dispatch context exists. v4 → v5 adds the
+// `phases` table + `tasks.phase_id` so the Plan board can group tasks into
+// ordered, agent-assigned phases.
+const SCHEMA_VERSION = 5
 
 export class OrchestrationDb {
   private db: Database.Database
@@ -84,6 +88,7 @@ export class OrchestrationDb {
         id            TEXT PRIMARY KEY,
         parent_id     TEXT,
         created_by_terminal_handle TEXT,
+        phase_id      TEXT,
         spec          TEXT NOT NULL,
         status        TEXT NOT NULL DEFAULT 'pending'
           CHECK(status IN (
@@ -98,6 +103,16 @@ export class OrchestrationDb {
 
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
+
+      CREATE TABLE IF NOT EXISTS phases (
+        id            TEXT PRIMARY KEY,
+        label         TEXT NOT NULL,
+        order_index   INTEGER NOT NULL DEFAULT 0,
+        assigned_agent TEXT,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_phases_order ON phases(order_index);
 
       CREATE TABLE IF NOT EXISTS dispatch_contexts (
         id                  TEXT PRIMARY KEY,
@@ -232,6 +247,14 @@ export class OrchestrationDb {
       if (current < 4) {
         if (!this.hasColumn('tasks', 'created_by_terminal_handle')) {
           this.db.exec(`ALTER TABLE tasks ADD COLUMN created_by_terminal_handle TEXT`)
+        }
+      }
+      // v4 → v5: add `tasks.phase_id`. The `phases` table itself is created by
+      // createTables() (CREATE TABLE IF NOT EXISTS runs every startup); only the
+      // new column needs an explicit ALTER to reach existing on-disk DBs.
+      if (current < 5) {
+        if (!this.hasColumn('tasks', 'phase_id')) {
+          this.db.exec(`ALTER TABLE tasks ADD COLUMN phase_id TEXT`)
         }
       }
       this.createUndeliveredInboxIndexIfPossible()
@@ -420,6 +443,7 @@ export class OrchestrationDb {
     deps?: string[]
     parentId?: string
     createdByTerminalHandle?: string
+    phaseId?: string
   }): TaskRow {
     const id = generateId('task')
     const depsJson = JSON.stringify(task.deps ?? [])
@@ -427,12 +451,13 @@ export class OrchestrationDb {
     const status: TaskStatus = hasDeps ? 'pending' : 'ready'
     this.db
       .prepare(
-        'INSERT INTO tasks (id, parent_id, created_by_terminal_handle, spec, status, deps) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO tasks (id, parent_id, created_by_terminal_handle, phase_id, spec, status, deps) VALUES (?, ?, ?, ?, ?, ?, ?)'
       )
       .run(
         id,
         task.parentId ?? null,
         task.createdByTerminalHandle ?? null,
+        task.phaseId ?? null,
         task.spec,
         status,
         depsJson
@@ -543,6 +568,66 @@ export class OrchestrationDb {
         this.db.prepare("UPDATE tasks SET status = 'ready' WHERE id = ?").run(task.id)
       }
     }
+  }
+
+  // ── Phases ──
+
+  // Why: phases are an ordered grouping for the Plan board. order_index drives
+  // column order; when omitted a new phase appends after the current max.
+  createPhase(phase: { label: string; assignedAgent?: string; orderIndex?: number }): PhaseRow {
+    const id = generateId('phase')
+    const orderIndex = phase.orderIndex ?? this.nextPhaseOrderIndex()
+    this.db
+      .prepare('INSERT INTO phases (id, label, order_index, assigned_agent) VALUES (?, ?, ?, ?)')
+      .run(id, phase.label, orderIndex, phase.assignedAgent ?? null)
+    return this.db.prepare('SELECT * FROM phases WHERE id = ?').get(id) as PhaseRow
+  }
+
+  private nextPhaseOrderIndex(): number {
+    const row = this.db.prepare('SELECT MAX(order_index) AS max_order FROM phases').get() as {
+      max_order: number | null
+    }
+    return (row?.max_order ?? -1) + 1
+  }
+
+  listPhases(): PhaseRow[] {
+    return this.db
+      .prepare('SELECT * FROM phases ORDER BY order_index, created_at')
+      .all() as PhaseRow[]
+  }
+
+  getPhase(id: string): PhaseRow | undefined {
+    return this.db.prepare('SELECT * FROM phases WHERE id = ?').get(id) as PhaseRow | undefined
+  }
+
+  // Why: COALESCE leaves unspecified fields unchanged so callers can patch one
+  // field (e.g. reassign the agent) without re-sending the whole phase.
+  updatePhase(
+    id: string,
+    fields: { label?: string; assignedAgent?: string; orderIndex?: number }
+  ): PhaseRow | undefined {
+    this.db
+      .prepare(
+        `UPDATE phases SET
+           label = COALESCE(?, label),
+           order_index = COALESCE(?, order_index),
+           assigned_agent = COALESCE(?, assigned_agent)
+         WHERE id = ?`
+      )
+      .run(fields.label ?? null, fields.orderIndex ?? null, fields.assignedAgent ?? null, id)
+    return this.getPhase(id)
+  }
+
+  // Why: removing a phase detaches its tasks (phase_id → NULL) rather than
+  // deleting them — the work survives even if the grouping changes.
+  removePhase(id: string): void {
+    this.db.prepare('UPDATE tasks SET phase_id = NULL WHERE phase_id = ?').run(id)
+    this.db.prepare('DELETE FROM phases WHERE id = ?').run(id)
+  }
+
+  setTaskPhase(taskId: string, phaseId: string | null): TaskRow | undefined {
+    this.db.prepare('UPDATE tasks SET phase_id = ? WHERE id = ?').run(phaseId, taskId)
+    return this.getTask(taskId)
   }
 
   // ── Dispatch Contexts ──
@@ -859,6 +944,7 @@ export class OrchestrationDb {
     this.db.exec('DELETE FROM decision_gates')
     this.db.exec('DELETE FROM dispatch_contexts')
     this.db.exec('DELETE FROM tasks')
+    this.db.exec('DELETE FROM phases')
     this.db.exec('DELETE FROM messages')
   }
 
@@ -867,6 +953,7 @@ export class OrchestrationDb {
     this.db.exec('DELETE FROM decision_gates')
     this.db.exec('DELETE FROM dispatch_contexts')
     this.db.exec('DELETE FROM tasks')
+    this.db.exec('DELETE FROM phases')
   }
 
   resetMessages(): void {

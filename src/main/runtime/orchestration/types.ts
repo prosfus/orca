@@ -38,12 +38,25 @@ export type TaskRow = {
   id: string
   parent_id: string | null
   created_by_terminal_handle: string | null
+  // Why: the Plan board groups tasks into phases (one assigned agent per phase).
+  // Nullable so a task can exist outside any phase (ad-hoc / pre-grouping).
+  phase_id: string | null
   spec: string
   status: TaskStatus
   deps: string
   result: string | null
   created_at: string
   completed_at: string | null
+}
+
+// A Plan phase: an ordered group of tasks the Plan board renders as one column,
+// optionally executed by a single assigned agent type (claude/codex/droid/…).
+export type PhaseRow = {
+  id: string
+  label: string
+  order_index: number
+  assigned_agent: string | null
+  created_at: string
 }
 
 export type DispatchContextRow = {

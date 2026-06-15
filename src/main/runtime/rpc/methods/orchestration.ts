@@ -82,6 +82,7 @@ const TaskCreateParams = z.object({
   spec: requiredString('Missing --spec'),
   deps: OptionalString,
   parent: OptionalString,
+  phase: OptionalString,
   callerTerminalHandle: OptionalString
 })
 
@@ -106,6 +107,28 @@ const TaskUpdateParams = z.object({
       })
     ),
   result: OptionalString
+})
+
+const PhaseCreateParams = z.object({
+  label: requiredString('Missing --label'),
+  agent: OptionalString,
+  orderIndex: OptionalFiniteNumber
+})
+
+const PhaseUpdateParams = z.object({
+  id: requiredString('Missing --id'),
+  label: OptionalString,
+  agent: OptionalString,
+  orderIndex: OptionalFiniteNumber
+})
+
+const PhaseRemoveParams = z.object({
+  id: requiredString('Missing --id')
+})
+
+const TaskSetPhaseParams = z.object({
+  task: requiredString('Missing --task'),
+  phase: OptionalString
 })
 
 const DispatchParams = z.object({
@@ -342,6 +365,7 @@ export const ORCHESTRATION_METHODS: RpcMethod[] = [
         spec: params.spec,
         deps,
         parentId: params.parent,
+        phaseId: params.phase,
         createdByTerminalHandle: params.callerTerminalHandle
       })
       return { task }
@@ -380,6 +404,72 @@ export const ORCHESTRATION_METHODS: RpcMethod[] = [
       const task = db.updateTaskStatus(params.id, params.status, params.result)
       if (!task) {
         throw new Error(`Task not found: ${params.id}`)
+      }
+      return { task }
+    }
+  }),
+
+  defineMethod({
+    name: 'orchestration.phaseCreate',
+    params: PhaseCreateParams,
+    handler: (params, { runtime }) => {
+      const db = runtime.getOrchestrationDb()
+      const phase = db.createPhase({
+        label: params.label,
+        assignedAgent: params.agent,
+        orderIndex: params.orderIndex ?? undefined
+      })
+      return { phase }
+    }
+  }),
+
+  defineMethod({
+    name: 'orchestration.phaseList',
+    params: z.object({}),
+    handler: (_params, { runtime }) => {
+      const db = runtime.getOrchestrationDb()
+      const phases = db.listPhases()
+      return { phases, count: phases.length }
+    }
+  }),
+
+  defineMethod({
+    name: 'orchestration.phaseUpdate',
+    params: PhaseUpdateParams,
+    handler: (params, { runtime }) => {
+      const db = runtime.getOrchestrationDb()
+      const phase = db.updatePhase(params.id, {
+        label: params.label,
+        assignedAgent: params.agent,
+        orderIndex: params.orderIndex ?? undefined
+      })
+      if (!phase) {
+        throw new Error(`Phase not found: ${params.id}`)
+      }
+      return { phase }
+    }
+  }),
+
+  defineMethod({
+    name: 'orchestration.phaseRemove',
+    params: PhaseRemoveParams,
+    handler: (params, { runtime }) => {
+      const db = runtime.getOrchestrationDb()
+      db.removePhase(params.id)
+      return { removed: params.id }
+    }
+  }),
+
+  defineMethod({
+    name: 'orchestration.taskSetPhase',
+    params: TaskSetPhaseParams,
+    handler: (params, { runtime }) => {
+      const db = runtime.getOrchestrationDb()
+      // Why: an empty/omitted --phase detaches the task (phase_id → NULL).
+      const phaseId = params.phase && params.phase.length > 0 ? params.phase : null
+      const task = db.setTaskPhase(params.task, phaseId)
+      if (!task) {
+        throw new Error(`Task not found: ${params.task}`)
       }
       return { task }
     }

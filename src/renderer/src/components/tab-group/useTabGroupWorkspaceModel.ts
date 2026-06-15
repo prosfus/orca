@@ -597,6 +597,22 @@ export function useTabGroupWorkspaceModel({
           activate: true
         })
       },
+      // Why: the Plan board shows the global orchestration DAG; one Plan tab per
+      // group — focus the existing one if present. entityId is a constant.
+      newPlanTab: () => {
+        const state = useAppStore.getState()
+        const existing = state.findTabForEntityInGroup(worktreeId, groupId, 'plan', 'plan')
+        if (existing) {
+          state.activateTab(existing.id)
+          return
+        }
+        state.createUnifiedTab(worktreeId, 'plan', {
+          entityId: 'plan',
+          label: 'Plan',
+          targetGroupId: groupId,
+          activate: true
+        })
+      },
       newSimulatorTab: worktreeState.mobileEmulatorEnabled
         ? () => {
             if (getSimulatorTabForWorktree(worktreeId)) {

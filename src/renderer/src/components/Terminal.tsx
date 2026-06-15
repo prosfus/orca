@@ -951,6 +951,32 @@ function Terminal(): React.JSX.Element | null {
     })
   }, [activeWorktreeId])
 
+  // Why: the Plan board shows the global orchestration DAG; one Plan tab per
+  // group in the active workspace — focus the existing one if present.
+  const handleNewPlan = useCallback(() => {
+    if (!activeWorktreeId) {
+      return
+    }
+    const state = useAppStore.getState()
+    const targetGroupId =
+      state.activeGroupIdByWorktree[activeWorktreeId] ??
+      state.groupsByWorktree[activeWorktreeId]?.[0]?.id
+    if (!targetGroupId) {
+      return
+    }
+    const existing = state.findTabForEntityInGroup(activeWorktreeId, targetGroupId, 'plan', 'plan')
+    if (existing) {
+      state.activateTab(existing.id)
+      return
+    }
+    state.createUnifiedTab(activeWorktreeId, 'plan', {
+      entityId: 'plan',
+      label: 'Plan',
+      targetGroupId,
+      activate: true
+    })
+  }, [activeWorktreeId])
+
   const handleCloseTab = useCallback((tabId: string) => {
     closeTerminalTab(tabId)
   }, [])
@@ -1625,6 +1651,7 @@ function Terminal(): React.JSX.Element | null {
             onOpenEntry={handleOpenEntry}
             onNewFileTab={handleNewFile}
             onNewCanvasTab={handleNewCanvas}
+            onNewPlanTab={handleNewPlan}
             onSetCustomTitle={setTabCustomTitle}
             onSetTabColor={setTabColor}
             expandedPaneByTabId={expandedPaneByTabId}

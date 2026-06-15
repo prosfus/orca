@@ -26,6 +26,7 @@ import { translate } from '@/i18n/i18n'
 
 const EditorPanel = lazy(() => import('../editor/EditorPanel'))
 const CanvasPanel = lazy(() => import('../canvas/CanvasPanel'))
+const PlanPanel = lazy(() => import('../plan/PlanPanel'))
 
 export default function TabGroupPanel({
   groupId,
@@ -124,6 +125,7 @@ export default function TabGroupPanel({
       onOpenEntry={commands.openEntry}
       onNewFileTab={commands.newFileTab}
       onNewCanvasTab={commands.newCanvasTab}
+      onNewPlanTab={commands.newPlanTab}
       onSetCustomTitle={commands.setTabCustomTitle}
       onSetTabColor={commands.setTabColor}
       onTogglePaneExpand={commands.toggleTerminalPaneExpand}
@@ -415,6 +417,20 @@ export default function TabGroupPanel({
               }
             >
               <CanvasPanel worktreeId={activeTab.worktreeId} />
+            </Suspense>
+          </div>
+        )}
+
+        {activeTab?.contentType === 'plan' && (
+          <div className="absolute inset-0 flex min-h-0 min-w-0">
+            <Suspense
+              fallback={
+                <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                  Loading plan...
+                </div>
+              }
+            >
+              <PlanPanel />
             </Suspense>
           </div>
         )}
