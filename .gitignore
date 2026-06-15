@@ -67,6 +67,9 @@ design-docs/
 .context/
 .atl/
 
+# Local workspace sandboxes created by Orca.
+/workspaces/
+
 # Machine-local agent hook endpoint files may contain auth tokens.
 /agent-hooks/
 
