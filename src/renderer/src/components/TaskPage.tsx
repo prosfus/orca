@@ -126,7 +126,9 @@ import {
   LinearProjectTable
 } from '@/components/linear-project-view-surfaces'
 import JiraIssueWorkspace from '@/components/JiraIssueWorkspace'
+import TrabeIncidenciaWorkspace from '@/components/TrabeIncidenciaWorkspace'
 import { JiraIcon } from '@/components/icons/JiraIcon'
+import { TrabeIcon } from '@/components/icons/TrabeIcon'
 import { cn } from '@/lib/utils'
 import {
   getLinkedWorkItemSuggestedName,
@@ -187,7 +189,8 @@ import type {
   LinearWorkflowState,
   Repo,
   TaskProvider,
-  TaskViewPresetId
+  TaskViewPresetId,
+  TrabeIncidencia
 } from '../../../shared/types'
 import {
   LINEAR_ISSUE_LIST_MAX,
@@ -331,6 +334,11 @@ const SOURCE_OPTIONS: SourceOption[] = [
     id: 'jira',
     label: translate('auto.components.TaskPage.9cd11ba218', 'Jira'),
     Icon: ({ className }) => <JiraIcon className={className} />
+  },
+  {
+    id: 'trabe',
+    label: translate('auto.components.TaskPage.trabe.label', 'Trabe'),
+    Icon: ({ className }) => <TrabeIcon className={className} />
   }
 ]
 
@@ -347,6 +355,7 @@ const JIRA_PRESETS: JiraPreset[] = [
 const TASK_SEARCH_DEBOUNCE_MS = 300
 const LINEAR_ITEM_LIMIT = 36
 const JIRA_ITEM_LIMIT = 50
+const TRABE_ITEM_LIMIT = 100
 const PR_CHECKS_EAGER_PREFETCH_LIMIT = 20
 
 const GITHUB_TASK_GRID_CLASS =
@@ -2638,6 +2647,10 @@ export default function TaskPage(): React.JSX.Element {
   const searchJiraIssues = useAppStore((s) => s.searchJiraIssues)
   const listJiraIssues = useAppStore((s) => s.listJiraIssues)
   const checkJiraConnection = useAppStore((s) => s.checkJiraConnection)
+  const trabeStatus = useAppStore((s) => s.trabeStatus)
+  const trabeStatusChecked = useAppStore((s) => s.trabeStatusChecked)
+  const checkTrabeConnection = useAppStore((s) => s.checkTrabeConnection)
+  const listTrabeIncidencias = useAppStore((s) => s.listTrabeIncidencias)
   const submitShortcutLabel = getScreenSubmitShortcutLabel()
   const eligibleRepos = useMemo(() => repos.filter((repo) => isGitRepoKind(repo)), [repos])
 
@@ -2733,7 +2746,8 @@ export default function TaskPage(): React.JSX.Element {
         preferredVisibleTaskProviders,
         {
           gitlabInstalled: preflightStatus?.glab?.installed === true,
-          linearConnected: linearStatus.connected === true
+          linearConnected: linearStatus.connected === true,
+          trabeConfigured: Boolean(settings?.trabeEnvFilePath?.trim())
         },
         defaultTaskSource
       ),
@@ -2741,7 +2755,8 @@ export default function TaskPage(): React.JSX.Element {
       defaultTaskSource,
       linearStatus.connected,
       preferredVisibleTaskProviders,
-      preflightStatus?.glab?.installed
+      preflightStatus?.glab?.installed,
+      settings?.trabeEnvFilePath
     ]
   )
   const visibleSourceOptions = useMemo(
@@ -3475,6 +3490,15 @@ export default function TaskPage(): React.JSX.Element {
   const [appliedJiraSearch, setAppliedJiraSearch] = useState('')
   const [activeJiraPreset, setActiveJiraPreset] = useState<JiraPresetId>('assigned')
   const [jiraRefreshNonce, setJiraRefreshNonce] = useState(0)
+
+  // Trabe tab state (read-only mirror of the Jira tab: list + detail, no mutations)
+  const [trabeIncidencias, setTrabeIncidencias] = useState<TrabeIncidencia[]>([])
+  const [trabeLoading, setTrabeLoading] = useState(false)
+  const [trabeError, setTrabeError] = useState<string | null>(null)
+  const [trabeRefreshNonce, setTrabeRefreshNonce] = useState(0)
+  const [selectedTrabeIncidencia, setSelectedTrabeIncidencia] = useState<TrabeIncidencia | null>(
+    null
+  )
 
   useEffect(() => {
     if (taskResumeAppliedRef.current || !persistedUIReady || !settings) {
@@ -5869,13 +5893,18 @@ export default function TaskPage(): React.JSX.Element {
     if (!jiraStatusChecked) {
       void checkJiraConnection()
     }
+    if (!trabeStatusChecked) {
+      void checkTrabeConnection()
+    }
   }, [
     checkJiraConnection,
     checkLinearConnection,
+    checkTrabeConnection,
     jiraStatusChecked,
     linearStatusChecked,
     preflightStatusChecked,
-    refreshPreflightStatus
+    refreshPreflightStatus,
+    trabeStatusChecked
   ])
 
   // Why: debounce the Linear search input so we don't fire a request on every
@@ -6408,6 +6437,63 @@ export default function TaskPage(): React.JSX.Element {
   ])
 
   useEffect(() => {
+    if (!taskResumeApplied || taskSource !== 'trabe' || !trabeStatus.connected) {
+      return
+    }
+
+    let cancelled = false
+    setTrabeLoading(true)
+    setTrabeError(null)
+
+    void listTrabeIncidencias(TRABE_ITEM_LIMIT)
+      .then((incidencias) => {
+        if (cancelled) {
+          return
+        }
+        setTrabeIncidencias(incidencias)
+        setTrabeLoading(false)
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return
+        }
+        setTrabeError(err instanceof Error ? err.message : 'Failed to load Trabe incidencias.')
+        setTrabeLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    taskSource,
+    trabeStatus.connected,
+    trabeRefreshNonce,
+    taskResumeApplied,
+    listTrabeIncidencias
+  ])
+
+  // Why: keep the detail sheet consistent with the visible list — if the
+  // selected incidencia falls out of the refreshed list, close the sheet.
+  useEffect(() => {
+    if (!taskResumeApplied || taskSource !== 'trabe') {
+      return
+    }
+    if (
+      selectedTrabeIncidencia &&
+      (!trabeStatus.connected ||
+        !trabeIncidencias.some((incidencia) => incidencia.id === selectedTrabeIncidencia.id))
+    ) {
+      setSelectedTrabeIncidencia(null)
+    }
+  }, [
+    selectedTrabeIncidencia,
+    taskResumeApplied,
+    taskSource,
+    trabeIncidencias,
+    trabeStatus.connected
+  ])
+
+  useEffect(() => {
     if (!taskResumeApplied || taskSource !== 'jira') {
       return
     }
@@ -6588,6 +6674,7 @@ export default function TaskPage(): React.JSX.Element {
     hasGitHubDetail: Boolean(dialogWorkItem),
     hasGitLabDetail: Boolean(gitlabDialogItem),
     hasJiraDetail: Boolean(selectedJiraIssue),
+    hasTrabeDetail: Boolean(selectedTrabeIncidencia),
     hasLinearIssueDetail: Boolean(selectedLinearIssue),
     hasLinearProjectContext: Boolean(selectedLinearProject),
     hasLinearViewContext: Boolean(selectedLinearCustomView)
@@ -7497,6 +7584,44 @@ export default function TaskPage(): React.JSX.Element {
                           </button>
                         ) : null}
                       </div>
+                    </div>
+                  </div>
+                ) : taskSource === 'trabe' && trabeStatus.connected ? (
+                  <div className="rounded-md rounded-b-none border border-border/50 bg-muted/50 p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        {translate(
+                          'auto.components.TaskPage.trabe.openListHint',
+                          'Open incidencias from the Trabe database (read-only).'
+                        )}
+                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setTrabeRefreshNonce((n) => n + 1)}
+                            disabled={trabeLoading}
+                            aria-label={translate(
+                              'auto.components.TaskPage.trabe.refresh',
+                              'Refresh Trabe incidencias'
+                            )}
+                            className="border-border/50 bg-transparent hover:bg-muted/50 backdrop-blur-md supports-[backdrop-filter]:bg-transparent"
+                          >
+                            {trabeLoading ? (
+                              <LoaderCircle className="size-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="size-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" sideOffset={6}>
+                          {translate(
+                            'auto.components.TaskPage.trabe.refresh',
+                            'Refresh Trabe incidencias'
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 ) : taskSource === 'gitlab' ? (
@@ -8419,6 +8544,226 @@ export default function TaskPage(): React.JSX.Element {
                 </div>
               </div>
             </div>
+          ) : taskSource === 'trabe' ? (
+            !trabeStatusChecked ? (
+              <div className="mt-4 flex items-center justify-center py-14">
+                <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : !trabeStatus.connected ? (
+              <div className="mt-4 flex flex-col items-center justify-center rounded-md border border-border/50 bg-muted/50 px-6 py-14 text-center shadow-sm">
+                <TrabeIcon className="mb-4 size-8 text-muted-foreground/60" />
+                <p className="text-base font-medium text-foreground">
+                  {translate(
+                    'auto.components.TaskPage.trabe.notReachable',
+                    'Trabe database not reachable'
+                  )}
+                </p>
+                <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                  {trabeStatus.error ??
+                    translate(
+                      'auto.components.TaskPage.trabe.configureHint',
+                      'Check the Trabe .env path and DATABASE_URL in Settings.'
+                    )}
+                </p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                  <Button variant="outline" onClick={() => hideTaskSource('trabe', 'Trabe')}>
+                    {translate('auto.components.TaskPage.trabe.hide', 'Hide Trabe')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-0 max-h-full flex-col overflow-hidden rounded-md rounded-t-none border border-t-0 border-border/50 bg-background shadow-sm">
+                <div className="flex h-10 flex-none items-center justify-between gap-3 border-b border-border/50 bg-muted/35 px-3">
+                  <div className="min-w-0 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                    {translate('auto.components.TaskPage.trabe.listTitle', 'Trabe incidencias')}
+                  </div>
+                  <div className="shrink-0 text-[11px] text-muted-foreground">
+                    {trabeIncidencias.length}{' '}
+                    {translate('auto.components.TaskPage.b7bae28b6a', 'shown')}
+                  </div>
+                </div>
+
+                <div className="grid h-8 flex-none grid-cols-[72px_minmax(0,1fr)_110px_96px_80px] items-center gap-3 border-b border-border/50 bg-muted/25 px-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground max-md:!hidden lg:grid-cols-[72px_minmax(0,1.25fr)_110px_110px_160px_96px_56px]">
+                  <span>{translate('auto.components.TaskPage.trabe.numero', 'Nº')}</span>
+                  <span>
+                    {translate('auto.components.TaskPage.trabe.incidencia', 'Incidencia')}
+                  </span>
+                  <span>{translate('auto.components.TaskPage.154b0fa623', 'Status')}</span>
+                  <span>{translate('auto.components.TaskPage.c8d5bec5f7', 'Priority')}</span>
+                  <span className="block max-lg:!hidden">
+                    {translate('auto.components.TaskPage.trabe.proyecto', 'Project')}
+                  </span>
+                  <span>{translate('auto.components.TaskPage.f362667d55', 'Updated')}</span>
+                  <span className="block max-lg:!hidden" />
+                </div>
+
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek"
+                  style={{ scrollbarGutter: 'stable' }}
+                >
+                  {trabeError ? (
+                    <div className="border-b border-border px-4 py-4 text-sm text-destructive">
+                      {trabeError}
+                    </div>
+                  ) : null}
+
+                  {trabeLoading && trabeIncidencias.length === 0 ? (
+                    <div className="divide-y divide-border/50">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="px-3 py-3">
+                          <div className="h-4 w-4/5 animate-pulse rounded bg-muted/70" />
+                          <div className="mt-2 h-3 w-3/5 animate-pulse rounded bg-muted/60" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {!trabeLoading && trabeIncidencias.length === 0 && !trabeError ? (
+                    <div className="px-4 py-10 text-center">
+                      <p className="text-sm font-medium text-foreground">
+                        {translate(
+                          'auto.components.TaskPage.trabe.empty',
+                          'No open incidencias found'
+                        )}
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {translate(
+                          'auto.components.TaskPage.trabe.emptyHint',
+                          'New Trabe incidencias will appear here.'
+                        )}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div className="divide-y divide-border/50">
+                    {trabeIncidencias.map((incidencia) => {
+                      const selected = incidencia.id === selectedTrabeIncidencia?.id
+                      const labels = incidencia.labels.slice(0, 3)
+                      return (
+                        <div
+                          key={incidencia.id}
+                          role="button"
+                          tabIndex={0}
+                          aria-current={selected ? 'true' : undefined}
+                          data-current={selected ? 'true' : undefined}
+                          onClick={() => setSelectedTrabeIncidencia(incidencia)}
+                          onKeyDown={(e) => {
+                            if (e.target !== e.currentTarget) {
+                              return
+                            }
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setSelectedTrabeIncidencia(incidencia)
+                            }
+                          }}
+                          className={cn(
+                            'group/row grid min-h-12 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:grid-cols-[72px_minmax(0,1fr)_110px_96px_80px] lg:grid-cols-[72px_minmax(0,1.25fr)_110px_110px_160px_96px_56px]',
+                            selected && 'bg-accent'
+                          )}
+                        >
+                          <span className="block truncate font-mono text-[12px] text-muted-foreground max-md:!hidden">
+                            #{incidencia.numero}
+                          </span>
+
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="shrink-0 font-mono text-[11px] text-muted-foreground md:hidden">
+                                #{incidencia.numero}
+                              </span>
+                              <h3 className="min-w-0 truncate text-[13px] font-medium text-foreground">
+                                {incidencia.title}
+                              </h3>
+                            </div>
+                            <div className="mt-1 flex min-w-0 items-center gap-1.5 md:!hidden">
+                              <span className="inline-flex min-w-0 items-center rounded-full border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                <span className="truncate">{incidencia.state}</span>
+                              </span>
+                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                                {incidencia.priority}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex min-w-0 items-center gap-1 max-lg:!hidden">
+                              {incidencia.empresaNombre ? (
+                                <span className="max-w-[160px] truncate text-[10px] text-muted-foreground">
+                                  {incidencia.empresaNombre}
+                                </span>
+                              ) : null}
+                              {labels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="max-w-[140px] truncate rounded-full border border-border/50 bg-muted/35 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex min-w-0 max-md:!hidden">
+                            <span className="inline-flex max-w-full items-center rounded-full border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              <span className="truncate">{incidencia.state}</span>
+                            </span>
+                          </div>
+
+                          <span className="block truncate text-[12px] text-muted-foreground max-md:!hidden">
+                            {incidencia.priority}
+                          </span>
+
+                          <span className="block min-w-0 truncate text-[12px] text-muted-foreground max-lg:!hidden">
+                            {incidencia.proyectoNombre ?? '—'}
+                          </span>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="block min-w-0 truncate text-[12px] text-muted-foreground max-md:!hidden">
+                                {formatRelativeTime(incidencia.updatedAt)}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" sideOffset={6}>
+                              {new Date(incidencia.updatedAt).toLocaleString()}
+                            </TooltipContent>
+                          </Tooltip>
+
+                          <div className="flex shrink-0 items-center justify-end gap-1 max-lg:!hidden md:opacity-0 md:transition-opacity md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100">
+                            {incidencia.url ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      window.api.shell.openUrl(incidencia.url)
+                                    }}
+                                    aria-label={translate(
+                                      'auto.components.TaskPage.trabe.openExternal',
+                                      'Open #{{value0}} in Trabe',
+                                      { value0: incidencia.numero }
+                                    )}
+                                  >
+                                    <ExternalLink className="size-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" sideOffset={6}>
+                                  {translate(
+                                    'auto.components.TaskPage.trabe.openInTrabe',
+                                    'Open in Trabe'
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+                <TrabeIncidenciaWorkspace
+                  incidencia={selectedTrabeIncidencia}
+                  onClose={() => setSelectedTrabeIncidencia(null)}
+                />
+              </div>
+            )
           ) : taskSource === 'jira' ? (
             !jiraStatusChecked ? (
               <div className="mt-4 flex items-center justify-center py-14">

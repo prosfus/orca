@@ -1,3 +1,4 @@
+import { BrowserWindow, webContents } from 'electron'
 import { registerAppHandlers } from './app'
 import { registerCliHandlers } from './cli'
 import { registerPreflightHandlers } from './preflight'
@@ -17,6 +18,7 @@ import { registerGitLabHandlers } from './gitlab'
 import { registerHostedReviewHandlers } from './hosted-review'
 import { registerLinearHandlers } from './linear'
 import { registerJiraHandlers } from './jira'
+import { registerTrabeHandlers } from './trabe'
 import { registerFeedbackHandlers } from './feedback'
 import { registerCrashReportingHandlers } from './crash-reporting'
 import { registerExportHandlers } from './export'
@@ -34,6 +36,7 @@ import { setTrustedBrowserRendererWebContentsId, setAgentBrowserBridgeRef } from
 import { registerSessionHandlers } from './session'
 import { registerSettingsHandlers } from './settings'
 import { registerDiagnosticsHandlers } from './diagnostics'
+import { registerDiagnosticoHandlers } from './diagnosticos'
 import { registerSkillsHandlers } from './skills'
 import { registerWorkspaceSpaceHandlers } from './workspace-space'
 import { registerWorkspacePortHandlers } from './workspace-ports'
@@ -115,6 +118,7 @@ export function registerCoreHandlers(
   registerHostedReviewHandlers(store, stats)
   registerLinearHandlers()
   registerJiraHandlers()
+  registerTrabeHandlers(store)
   registerFeedbackHandlers()
   if (crashReports) {
     registerCrashReportingHandlers(crashReports)
@@ -137,6 +141,14 @@ export function registerCoreHandlers(
   if (automations) {
     registerAutomationHandlers(store, automations)
   }
+  // Why: this file only receives the main window's webContents id, so the
+  // BrowserWindow for diagnostico change events is resolved from it here.
+  const mainWindowContents =
+    mainWindowWebContentsId === null ? null : (webContents.fromId(mainWindowWebContentsId) ?? null)
+  registerDiagnosticoHandlers(
+    store,
+    mainWindowContents ? BrowserWindow.fromWebContents(mainWindowContents) : null
+  )
   if (keybindings) {
     registerKeybindingHandlers(keybindings)
   }

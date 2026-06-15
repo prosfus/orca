@@ -98,6 +98,7 @@ import type {
   LinearComment,
   LinearWorkflowState,
   LinearLabel,
+  Diagnostico,
   LinearMember,
   LinearProjectDetail,
   LinearProjectSummary,
@@ -134,6 +135,8 @@ import type {
   SearchResult,
   StatsSummary,
   MemorySnapshot,
+  TrabeConnectionStatus,
+  TrabeIncidencia,
   TuiAgent,
   UpdateStatus,
   Worktree,
@@ -148,6 +151,7 @@ import type {
   WorkspaceSessionPatch,
   WorkspaceSessionState
 } from '../shared/types'
+import type { DiagnosticoDispatchRequest } from '../shared/diagnostico-dispatch'
 import type { SetupScriptImportCandidate } from '../shared/setup-script-imports'
 import type { GitHistoryOptions, GitHistoryResult } from '../shared/git-history'
 import type { PublicKnownRuntimeEnvironment } from '../shared/runtime-environments'
@@ -1572,6 +1576,12 @@ export type PreloadApi = {
     }) => Promise<JiraUser[]>
     listTransitions: (args: { key: string; siteId?: string }) => Promise<JiraTransition[]>
   }
+  // Read-only Trabe task provider: list incidencias and fetch one by numero.
+  trabe: {
+    status: () => Promise<TrabeConnectionStatus>
+    listIssues: (args?: { limit?: number }) => Promise<TrabeIncidencia[]>
+    getIssue: (args: { numero: number }) => Promise<TrabeIncidencia | null>
+  }
   starNag: {
     onShow: (callback: () => void) => () => void
     dismiss: () => Promise<void>
@@ -2469,6 +2479,33 @@ export type PreloadApi = {
     snapshotWorkspaceName: (args: { workspaceId: string; displayName: string }) => Promise<number>
     rendererReady: () => Promise<void>
     onDispatchRequested: (callback: (request: AutomationDispatchRequest) => void) => () => void
+  }
+  diagnosticos: {
+    list: () => Promise<Diagnostico[]>
+    get: (id: string) => Promise<Diagnostico | null>
+    update: (id: string, patch: Partial<Omit<Diagnostico, 'id'>>) => Promise<Diagnostico | null>
+    delete: (id: string) => Promise<void>
+    /** Subscribe to 'diagnosticos:changed'; returns an unsubscribe function. */
+    onChanged: (callback: () => void) => () => void
+    /** Stamp a worktree's lineage origin as 'incidencia' so it stays hidden from Workspaces. */
+    adoptWorktree: (worktreeId: string) => Promise<void>
+    /** Launch-pipeline IPC (docs/incidencia-diagnostics.md §5). */
+    onDispatchRequested: (callback: (request: DiagnosticoDispatchRequest) => void) => () => void
+    rendererReady: () => Promise<void>
+    dispatchSettled: (diagnosticoId: string) => Promise<void>
+    /** Run the agent headless in main; streams live progress into the Diagnostico
+     *  and harvests DIAGNOSTICO.md on exit. Resolves when the agent ends. */
+    runAgent: (args: {
+      diagnosticoId: string
+      agentCli: Diagnostico['agentCli']
+      prompt: string
+      worktreePath: string
+      envFilePath: string
+    }) => Promise<void>
+    /** Cancel an in-flight headless run. */
+    cancel: (id: string) => Promise<void>
+    /** Manually diagnose the most recent open incidencia (on-demand). */
+    triggerLatest: () => Promise<{ ok: boolean; error?: string }>
   }
   wsl: {
     isAvailable: () => Promise<boolean>

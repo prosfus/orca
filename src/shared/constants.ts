@@ -284,6 +284,10 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     visibleTaskProvidersDefaultedForJira: true,
     defaultRepoSelection: null,
     defaultLinearTeamSelection: null,
+    // Why: personal-use defaults so Trabe incidencia diagnostics work out of the
+    // box against Pau's LiBuilding checkout (.env.trabe holds DATABASE_URL).
+    trabeEnvFilePath: 'C:/Users/Pau/LiBuilding/.env.trabe',
+    trabeRepoPath: 'C:/Users/Pau/LiBuilding',
     opencodeSessionCookie: '',
     opencodeWorkspaceId: '',
     geminiCliOAuthEnabled: false,
@@ -390,6 +394,7 @@ export function getDefaultPersistedState(homedir: string): PersistedState {
     legacyPaneKeyAliasEntries: [],
     automations: [],
     automationRuns: [],
+    diagnosticos: [],
     onboarding: getDefaultOnboardingState()
   }
 }

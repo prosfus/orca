@@ -33,8 +33,10 @@ import {
 } from '../shared/automation-schedules'
 import { normalizeAutomationPrecheck } from '../shared/automation-precheck'
 import type {
+  Diagnostico,
   PersistedState,
   Repo,
+  TuiAgent,
   ProjectGroup,
   SparsePreset,
   WorktreeMeta,
@@ -2167,6 +2169,7 @@ export class Store {
           ),
           automations: Array.isArray(parsed.automations) ? parsed.automations : [],
           automationRuns: Array.isArray(parsed.automationRuns) ? parsed.automationRuns : [],
+          diagnosticos: Array.isArray(parsed.diagnosticos) ? parsed.diagnosticos : [],
           onboarding: normalizedOnboarding
         }
       }
@@ -2936,6 +2939,58 @@ export class Store {
     }
     this.flush()
     return updated
+  }
+
+  // ── Trabe diagnosticos ────────────────────────────────────────────
+  // Why: ephemeral records of diagnostic-agent launches, mirroring the
+  // AutomationRun persistence pattern (PersistedState JSON, not sqlite).
+
+  createDiagnostico(input: {
+    incidenciaNumero: number
+    incidenciaAsunto: string
+    agentCli: TuiAgent
+  }): Diagnostico {
+    const diagnostico: Diagnostico = {
+      id: randomUUID(),
+      incidenciaNumero: input.incidenciaNumero,
+      incidenciaAsunto: input.incidenciaAsunto,
+      status: 'investigating',
+      agentCli: input.agentCli,
+      markdown: '',
+      worktreeId: null,
+      createdAt: Date.now(),
+      finishedAt: null,
+      error: null
+    }
+    this.state.diagnosticos = [...(this.state.diagnosticos ?? []), diagnostico]
+    this.flush()
+    return diagnostico
+  }
+
+  updateDiagnostico(id: string, patch: Partial<Omit<Diagnostico, 'id'>>): Diagnostico | null {
+    const index = (this.state.diagnosticos ?? []).findIndex((entry) => entry.id === id)
+    if (index === -1) {
+      return null
+    }
+    const updated: Diagnostico = { ...this.state.diagnosticos[index], ...patch, id }
+    this.state.diagnosticos[index] = updated
+    this.flush()
+    return updated
+  }
+
+  listDiagnosticos(): Diagnostico[] {
+    return [...(this.state.diagnosticos ?? [])].sort(
+      (left, right) => right.createdAt - left.createdAt
+    )
+  }
+
+  getDiagnostico(id: string): Diagnostico | null {
+    return (this.state.diagnosticos ?? []).find((entry) => entry.id === id) ?? null
+  }
+
+  deleteDiagnostico(id: string): void {
+    this.state.diagnosticos = (this.state.diagnosticos ?? []).filter((entry) => entry.id !== id)
+    this.flush()
   }
 
   snapshotAutomationRunWorkspaceDisplayName(workspaceId: string, displayName: string): number {

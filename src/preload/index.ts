@@ -39,6 +39,7 @@ import type {
   NotificationSoundResult,
   NestedRepoScanResult,
   OnboardingState,
+  Diagnostico,
   FloatingTerminalCwdRequest,
   MarkdownDocument,
   SearchResult,
@@ -47,6 +48,12 @@ import type {
   WorktreeDefaultTabsLaunch,
   WorktreeRemoteBranchConflictEvent
 } from '../shared/types'
+import {
+  DIAGNOSTICO_DISPATCH_REQUESTED,
+  DIAGNOSTICO_DISPATCH_SETTLED,
+  DIAGNOSTICO_RENDERER_READY,
+  type DiagnosticoDispatchRequest
+} from '../shared/diagnostico-dispatch'
 import type { GitHistoryOptions, GitHistoryResult } from '../shared/git-history'
 import type { ShellOpenLocalPathResult } from '../shared/shell-open-types'
 import type { SkillDiscoveryResult, SkillDiscoveryTarget } from '../shared/skills'
@@ -1446,6 +1453,16 @@ const api = {
 
     listTransitions: (args: { key: string; siteId?: string }): Promise<unknown[]> =>
       ipcRenderer.invoke('jira:listTransitions', args)
+  },
+
+  trabe: {
+    status: (): Promise<unknown> => ipcRenderer.invoke('trabe:status'),
+
+    listIssues: (args?: { limit?: number }): Promise<unknown[]> =>
+      ipcRenderer.invoke('trabe:listIssues', args),
+
+    getIssue: (args: { numero: number }): Promise<unknown> =>
+      ipcRenderer.invoke('trabe:getIssue', args)
   },
 
   starNag: {
@@ -3537,6 +3554,45 @@ const api = {
       ipcRenderer.on('automations:dispatchRequested', listener)
       return () => ipcRenderer.removeListener('automations:dispatchRequested', listener)
     }
+  },
+
+  diagnosticos: {
+    list: (): Promise<Diagnostico[]> => ipcRenderer.invoke('diagnosticos:list'),
+    get: (id: string): Promise<Diagnostico | null> =>
+      ipcRenderer.invoke('diagnosticos:get', { id }),
+    update: (id: string, patch: Partial<Omit<Diagnostico, 'id'>>): Promise<Diagnostico | null> =>
+      ipcRenderer.invoke('diagnosticos:update', { id, patch }),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke('diagnosticos:delete', { id }),
+    onChanged: (callback: () => void): (() => void) => {
+      const listener = (): void => callback()
+      ipcRenderer.on('diagnosticos:changed', listener)
+      return () => ipcRenderer.removeListener('diagnosticos:changed', listener)
+    },
+    adoptWorktree: (worktreeId: string): Promise<void> =>
+      ipcRenderer.invoke('diagnosticos:adoptWorktree', { worktreeId }),
+    onDispatchRequested: (
+      callback: (request: DiagnosticoDispatchRequest) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        request: DiagnosticoDispatchRequest
+      ): void => callback(request)
+      ipcRenderer.on(DIAGNOSTICO_DISPATCH_REQUESTED, listener)
+      return () => ipcRenderer.removeListener(DIAGNOSTICO_DISPATCH_REQUESTED, listener)
+    },
+    rendererReady: (): Promise<void> => ipcRenderer.invoke(DIAGNOSTICO_RENDERER_READY),
+    dispatchSettled: (diagnosticoId: string): Promise<void> =>
+      ipcRenderer.invoke(DIAGNOSTICO_DISPATCH_SETTLED, { diagnosticoId }),
+    runAgent: (args: {
+      diagnosticoId: string
+      agentCli: Diagnostico['agentCli']
+      prompt: string
+      worktreePath: string
+      envFilePath: string
+    }): Promise<void> => ipcRenderer.invoke('diagnosticos:runAgent', args),
+    cancel: (id: string): Promise<void> => ipcRenderer.invoke('diagnosticos:cancel', { id }),
+    triggerLatest: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('diagnosticos:triggerLatest')
   },
 
   e2e: {
