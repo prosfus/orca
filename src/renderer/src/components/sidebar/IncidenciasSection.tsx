@@ -1,18 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Stethoscope, FileText, MoreHorizontal, SquarePlus, Copy, Trash2, X } from 'lucide-react'
+import { Stethoscope, FileText, MoreHorizontal, SquarePlus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Diagnostico } from '../../../../shared/types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle
-} from '@/components/ui/sheet'
-import { CLIENT_PLATFORM } from '@/lib/new-workspace'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,42 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import CommentMarkdown from './CommentMarkdown'
 import { useAppStore } from '@/store'
 import { cn } from '@/lib/utils'
-
-// Why: mirrors the WorktreeCardMetadataStatusBadges tone recipe so diagnostic
-// states read with the same visual language as the rest of the sidebar.
-const STATUS_META: Record<Diagnostico['status'], { label: string; tone: string }> = {
-  investigating: {
-    label: 'Investigando',
-    tone: 'border-amber-500/25 bg-amber-500/5 text-amber-600 dark:text-amber-300'
-  },
-  ready: {
-    label: 'Listo',
-    tone: 'border-emerald-500/25 bg-emerald-500/5 text-emerald-600 dark:text-emerald-300'
-  },
-  failed: {
-    label: 'Fallo',
-    tone: 'border-rose-500/25 bg-rose-500/5 text-rose-600 dark:text-rose-300'
-  }
-}
-
-function formatRelative(ms: number): string {
-  const diff = Date.now() - ms
-  if (diff < 60_000) {
-    return 'hace un momento'
-  }
-  const minutes = Math.floor(diff / 60_000)
-  if (minutes < 60) {
-    return `hace ${minutes} min`
-  }
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return `hace ${hours} h`
-  }
-  return `hace ${Math.floor(hours / 24)} d`
-}
+import { DiagnosticoDetailSheet } from './DiagnosticoDetailSheet'
+import { DIAGNOSTICO_STATUS_META } from './diagnostico-status-meta'
+import { formatRelative } from './diagnostico-format'
 
 function normalizeRepoPath(value: string): string {
   return value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
@@ -86,11 +46,11 @@ function IncidenciaRow({
   onCreateWorkspace: (diagnostico: Diagnostico) => void
   onDiscard: (diagnostico: Diagnostico) => void
 }): React.JSX.Element {
-  const status = STATUS_META[diagnostico.status]
+  const status = DIAGNOSTICO_STATUS_META[diagnostico.status]
   const investigating = diagnostico.status === 'investigating'
   // Open the panel while investigating (live progress streams in) or once there's
   // a report/output to read.
-  const canOpen = investigating || diagnostico.markdown.length > 0
+  const canOpen = investigating || diagnostico.markdown.length > 0 || diagnostico.events.length > 0
   const handleRowClick = (): void => {
     if (canOpen) {
       onView(diagnostico)
@@ -171,7 +131,7 @@ function IncidenciasSection(): React.JSX.Element | null {
           return
         }
         setDiagnosticos(items)
-        // Keep an open report panel live as the agent streams output / finishes.
+        // Keep an open panel live as the agent streams events / finishes.
         setOpenDiagnostico((current) =>
           current ? (items.find((entry) => entry.id === current.id) ?? null) : current
         )
@@ -327,88 +287,17 @@ function IncidenciasSection(): React.JSX.Element | null {
         ))}
       </div>
 
-      <Sheet
-        open={openDiagnostico !== null}
+      <DiagnosticoDetailSheet
+        diagnostico={openDiagnostico}
         onOpenChange={(open) => {
           if (!open) {
             setOpenDiagnostico(null)
           }
         }}
-      >
-        <SheetContent
-          side="right"
-          showCloseButton={false}
-          // Why: on Windows the OS window controls live in the top-right titlebar
-          // strip; inset the sheet content so its header/close don't sit under them.
-          className={cn(
-            'flex w-full flex-col sm:max-w-[640px]',
-            CLIENT_PLATFORM === 'win32' && 'pt-9'
-          )}
-        >
-          <SheetHeader className="relative border-b border-border/60">
-            <SheetClose asChild>
-              <Button
-                variant="ghost"
-                size="xs"
-                className="absolute top-2 right-2 px-1 text-muted-foreground hover:text-foreground"
-                aria-label="Cerrar"
-              >
-                <X className="size-4" />
-              </Button>
-            </SheetClose>
-            <SheetTitle className="pr-8">
-              #{openDiagnostico?.incidenciaNumero} {openDiagnostico?.incidenciaAsunto}
-            </SheetTitle>
-            <SheetDescription>
-              {openDiagnostico
-                ? `${STATUS_META[openDiagnostico.status].label} · ${formatRelative(openDiagnostico.finishedAt ?? openDiagnostico.createdAt)}`
-                : 'Informe de diagnóstico'}
-            </SheetDescription>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-sleek p-4 text-sm">
-            {openDiagnostico && openDiagnostico.markdown ? (
-              <CommentMarkdown content={openDiagnostico.markdown} variant="document" />
-            ) : openDiagnostico?.status === 'investigating' ? (
-              <p className="flex items-center gap-2 text-muted-foreground">
-                <span className="inline-block size-2 animate-pulse rounded-full bg-amber-500" />
-                Investigando… el progreso del agente aparecerá aquí.
-              </p>
-            ) : (
-              <p className="text-muted-foreground">{openDiagnostico?.error ?? 'Sin informe.'}</p>
-            )}
-          </div>
-          {openDiagnostico ? (
-            <div className="flex items-center gap-2 border-t border-border/60 p-3">
-              <Button
-                size="sm"
-                disabled={openDiagnostico.status !== 'ready'}
-                onClick={() => createWorkspace(openDiagnostico)}
-              >
-                <SquarePlus className="size-3.5" />
-                Crear workspace
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!openDiagnostico.markdown}
-                onClick={() => copyReport(openDiagnostico)}
-              >
-                <Copy className="size-3.5" />
-                Copiar
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="ml-auto text-destructive hover:text-destructive"
-                onClick={() => discard(openDiagnostico)}
-              >
-                <Trash2 className="size-3.5" />
-                Descartar
-              </Button>
-            </div>
-          ) : null}
-        </SheetContent>
-      </Sheet>
+        onCreateWorkspace={createWorkspace}
+        onCopy={copyReport}
+        onDiscard={discard}
+      />
     </div>
   )
 }

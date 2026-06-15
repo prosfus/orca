@@ -34,6 +34,7 @@ import {
 import { normalizeAutomationPrecheck } from '../shared/automation-precheck'
 import type {
   Diagnostico,
+  DiagnosticoIncidenciaMeta,
   PersistedState,
   Repo,
   TuiAgent,
@@ -460,6 +461,19 @@ function normalizeAutomationSessionReuse(automation: Automation): Automation {
     ...automation,
     precheck: normalizeAutomationPrecheck(automation.precheck),
     reuseSession: automation.workspaceMode === 'existing' && automation.reuseSession === true
+  }
+}
+
+// Why: diagnosticos persisted before the structured timeline fields lack
+// prompt/incidencia/events/stats; default them so the detail panel renders
+// without per-field runtime guards.
+function normalizeDiagnostico(entry: Diagnostico): Diagnostico {
+  return {
+    ...entry,
+    prompt: entry.prompt ?? '',
+    incidencia: entry.incidencia ?? {},
+    events: Array.isArray(entry.events) ? entry.events : [],
+    stats: entry.stats ?? null
   }
 }
 
@@ -2169,7 +2183,9 @@ export class Store {
           ),
           automations: Array.isArray(parsed.automations) ? parsed.automations : [],
           automationRuns: Array.isArray(parsed.automationRuns) ? parsed.automationRuns : [],
-          diagnosticos: Array.isArray(parsed.diagnosticos) ? parsed.diagnosticos : [],
+          diagnosticos: Array.isArray(parsed.diagnosticos)
+            ? parsed.diagnosticos.map(normalizeDiagnostico)
+            : [],
           onboarding: normalizedOnboarding
         }
       }
@@ -2949,6 +2965,8 @@ export class Store {
     incidenciaNumero: number
     incidenciaAsunto: string
     agentCli: TuiAgent
+    prompt?: string
+    incidencia?: DiagnosticoIncidenciaMeta
   }): Diagnostico {
     const diagnostico: Diagnostico = {
       id: randomUUID(),
@@ -2960,7 +2978,11 @@ export class Store {
       worktreeId: null,
       createdAt: Date.now(),
       finishedAt: null,
-      error: null
+      error: null,
+      prompt: input.prompt ?? '',
+      incidencia: input.incidencia ?? {},
+      events: [],
+      stats: null
     }
     this.state.diagnosticos = [...(this.state.diagnosticos ?? []), diagnostico]
     this.flush()

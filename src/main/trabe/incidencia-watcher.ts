@@ -159,7 +159,16 @@ export class IncidenciaWatcher {
     const diagnostico = this.store.createDiagnostico({
       incidenciaNumero: incidencia.numero,
       incidenciaAsunto: incidencia.title,
-      agentCli
+      agentCli,
+      prompt,
+      incidencia: {
+        empresaNombre: detail?.clienteNombre ?? incidencia.empresaNombre,
+        proyectoNombre: detail?.proyectoNombre ?? incidencia.proyectoNombre,
+        moduloAfectado: detail?.moduloAfectado ?? null,
+        errorSignature: detail?.errorSignature ?? null,
+        descripcion: detail?.descripcion ?? null,
+        url: incidencia.url
+      }
     })
     this.queue.push({
       diagnosticoId: diagnostico.id,

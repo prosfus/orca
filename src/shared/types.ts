@@ -2898,8 +2898,43 @@ export type TrabeConnectionStatus = {
   error?: string
 }
 
+/** One step in the agent's live-progress timeline (parsed from stream-json). */
+export type DiagnosticoEvent = {
+  kind: 'text' | 'tool' | 'note'
+  at: number
+  /** text/note: the agent narration or a system note. */
+  text?: string
+  /** tool: the tool name (Bash, Read, Grep, Glob, …). */
+  tool?: string
+  /** tool: a one-line summary of the tool input (command/path/pattern). */
+  summary?: string
+  /** tool: a short, truncated preview of the tool result. */
+  result?: string
+}
+
+/** Run stats parsed from the agent's stream-json `result`/`init` events. */
+export type DiagnosticoStats = {
+  model?: string
+  durationMs?: number
+  numTurns?: number
+  costUsd?: number
+  inputTokens?: number
+  outputTokens?: number
+  toolCalls?: number
+}
+
+/** Incidencia metadata captured at enqueue for the detail header. */
+export type DiagnosticoIncidenciaMeta = {
+  empresaNombre?: string | null
+  proyectoNombre?: string | null
+  moduloAfectado?: string | null
+  errorSignature?: string | null
+  descripcion?: string | null
+  url?: string | null
+}
+
 /** Ephemeral diagnostic run record; mirrors AutomationRun. The markdown is the
- *  artifact — the worktree is removed once the report is harvested. */
+ *  final report artifact — the worktree is removed once the report is harvested. */
 export type Diagnostico = {
   id: string
   incidenciaNumero: number
@@ -2911,6 +2946,14 @@ export type Diagnostico = {
   createdAt: number
   finishedAt: number | null
   error: string | null
+  /** Initial prompt sent to the agent (shown in the detail panel). */
+  prompt: string
+  /** Incidencia metadata for the detail header. */
+  incidencia: DiagnosticoIncidenciaMeta
+  /** Structured live-progress timeline (capped). */
+  events: DiagnosticoEvent[]
+  /** Run stats from the agent's stream-json, when available. */
+  stats: DiagnosticoStats | null
 }
 
 // ─── Persistence shape ──────────────────────────────────────────────
