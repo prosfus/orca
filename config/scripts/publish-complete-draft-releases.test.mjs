@@ -148,6 +148,7 @@ describe('publishCompleteDraftReleases', () => {
       fetchImpl,
       verifyReleaseAssets,
       isDraftBuiltFromCurrentRef: vi.fn(async () => true),
+      platforms: 'windows',
       log
     })
 
@@ -166,6 +167,12 @@ describe('publishCompleteDraftReleases', () => {
         method: 'PATCH',
         body: JSON.stringify({ draft: false, prerelease: true })
       })
+    )
+    expect(verifyReleaseAssets).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'v1.4.2-rc.7', platforms: 'windows' })
+    )
+    expect(verifyReleaseAssets).toHaveBeenCalledWith(
+      expect.objectContaining({ tag: 'v1.4.2-rc.8', platforms: 'windows' })
     )
   })
 

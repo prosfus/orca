@@ -54,6 +54,14 @@ describe('getRequiredReleaseAssetNames', () => {
       ])
     )
   })
+
+  it('can require only Windows updater assets', () => {
+    expect(getRequiredReleaseAssetNames('v1.4.27', 'windows')).toEqual([
+      'latest.yml',
+      'orca-windows-setup.exe',
+      'orca-windows-setup.exe.blockmap'
+    ])
+  })
 })
 
 describe('extractManifestAssetNames', () => {
@@ -72,6 +80,50 @@ describe('extractManifestAssetNames', () => {
 })
 
 describe('verifyRequiredReleaseAssets', () => {
+  it('passes with only Windows assets when the Windows scope is requested', async () => {
+    const tag = 'v1.4.27'
+    const required = getRequiredReleaseAssetNames(tag, 'windows')
+    const release = releaseWithAssets(tag, required)
+    const latestAsset = release.assets.find((asset) => asset.name === 'latest.yml')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([release]))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          [
+            'version: 1.4.27',
+            'files:',
+            '  - url: orca-windows-setup.exe',
+            '    sha512: test',
+            'path: orca-windows-setup.exe'
+          ].join('\n')
+        )
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      verifyRequiredReleaseAssets({
+        repo: 'stablyai/orca',
+        tag,
+        token: 'token',
+        platforms: 'windows'
+      })
+    ).resolves.toMatchObject({
+      checked: required,
+      platforms: 'windows'
+    })
+    expect(latestAsset).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `https://api.github.com/repos/stablyai/orca/releases/assets/${latestAsset.id}`,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Accept: 'application/octet-stream'
+        })
+      })
+    )
+  })
+
   it('fails when a manifest-referenced asset has not been uploaded', async () => {
     const tag = 'v1.4.27'
     const required = getRequiredReleaseAssetNames(tag)

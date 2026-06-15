@@ -3,18 +3,37 @@
 import { pathToFileURL } from 'node:url'
 
 const API_VERSION = '2022-11-28'
+const RELEASE_PLATFORM_SCOPES = new Set(['all', 'windows'])
 
-export function getRequiredReleaseAssetNames(tag) {
+export function normalizeReleasePlatforms(platforms = 'all') {
+  const normalized = `${platforms}`.trim().toLowerCase()
+  if (!RELEASE_PLATFORM_SCOPES.has(normalized)) {
+    throw new Error(`Unknown release platform scope: ${platforms}`)
+  }
+  return normalized
+}
+
+function getManifestAssetNames(platforms) {
+  return platforms === 'windows'
+    ? ['latest.yml']
+    : ['latest-linux.yml', 'latest-mac.yml', 'latest.yml']
+}
+
+export function getRequiredReleaseAssetNames(tag, platforms = 'all') {
+  const releasePlatforms = normalizeReleasePlatforms(platforms)
   const version = tag.replace(/^v/i, '')
+  const windowsAssets = ['latest.yml', 'orca-windows-setup.exe', 'orca-windows-setup.exe.blockmap']
+  if (releasePlatforms === 'windows') {
+    return windowsAssets
+  }
+
   return [
     'latest-linux.yml',
     'latest-mac.yml',
-    'latest.yml',
     'orca-linux.AppImage',
     `orca-ide_${version}_amd64.deb`,
     `orca-ide-${version}.x86_64.rpm`,
-    'orca-windows-setup.exe',
-    'orca-windows-setup.exe.blockmap',
+    ...windowsAssets,
     `Orca-${version}-mac.zip`,
     `Orca-${version}-mac.zip.blockmap`,
     `Orca-${version}-arm64-mac.zip`,
@@ -81,12 +100,13 @@ async function fetchAssetText(repo, asset, token) {
   return res.text()
 }
 
-export async function verifyRequiredReleaseAssets({ repo, tag, token }) {
+export async function verifyRequiredReleaseAssets({ repo, tag, token, platforms = 'all' }) {
+  const releasePlatforms = normalizeReleasePlatforms(platforms)
   const release = await fetchRelease(repo, tag, token)
   const assetsByName = new Map(release.assets.map((asset) => [asset.name, asset]))
 
-  const requiredNames = new Set(getRequiredReleaseAssetNames(tag))
-  const manifestNames = ['latest-linux.yml', 'latest-mac.yml', 'latest.yml']
+  const requiredNames = new Set(getRequiredReleaseAssetNames(tag, releasePlatforms))
+  const manifestNames = getManifestAssetNames(releasePlatforms)
 
   for (const manifestName of manifestNames) {
     const manifestAsset = assetsByName.get(manifestName)
@@ -126,6 +146,7 @@ export async function verifyRequiredReleaseAssets({ repo, tag, token }) {
 
   return {
     tag,
+    platforms: releasePlatforms,
     checked: [...requiredNames].sort(),
     draft: release.draft,
     prerelease: release.prerelease
@@ -135,15 +156,20 @@ export async function verifyRequiredReleaseAssets({ repo, tag, token }) {
 async function main() {
   const tag = process.argv[2]
   if (!tag) {
-    throw new Error('Usage: node config/scripts/verify-release-required-assets.mjs <tag>')
+    throw new Error(
+      'Usage: node config/scripts/verify-release-required-assets.mjs <tag> [windows|all]'
+    )
   }
+  const platforms = process.argv[3] || process.env.ORCA_RELEASE_PLATFORMS || 'all'
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
   if (!token) {
     throw new Error('GH_TOKEN or GITHUB_TOKEN must be set')
   }
   const repo = process.env.GITHUB_REPOSITORY || 'stablyai/orca'
-  const result = await verifyRequiredReleaseAssets({ repo, tag, token })
-  console.log(`Verified ${result.checked.length} required release assets for ${repo}@${tag}`)
+  const result = await verifyRequiredReleaseAssets({ repo, tag, token, platforms })
+  console.log(
+    `Verified ${result.checked.length} ${result.platforms} release assets for ${repo}@${tag}`
+  )
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -79,6 +79,7 @@ export async function publishCompleteDraftReleases({
   fetchImpl = fetch,
   verifyReleaseAssets = verifyRequiredReleaseAssets,
   isDraftBuiltFromCurrentRef = ({ tag }) => isTagBuiltFromCurrentRef(tag),
+  platforms = process.env.ORCA_RELEASE_PLATFORMS || 'all',
   log = console.log
 }) {
   if (!repo) {
@@ -106,7 +107,7 @@ export async function publishCompleteDraftReleases({
     }
 
     try {
-      await verifyReleaseAssets({ repo, tag, token })
+      await verifyReleaseAssets({ repo, tag, token, platforms })
     } catch (error) {
       const reason = error instanceof Error ? error.message.split('\n')[0] : String(error)
       skipped.push({ tag, reason })
@@ -158,7 +159,8 @@ export function writeGithubOutputs({ published, skipped }, outputPath = process.
 async function main() {
   const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
   const repo = process.env.GITHUB_REPOSITORY || 'stablyai/orca'
-  const result = await publishCompleteDraftReleases({ repo, token })
+  const platforms = process.env.ORCA_RELEASE_PLATFORMS || 'all'
+  const result = await publishCompleteDraftReleases({ repo, token, platforms })
   writeGithubOutputs(result)
 }
 

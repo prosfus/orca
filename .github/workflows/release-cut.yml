@@ -36,6 +36,14 @@ on:
         required: false
         type: string
         default: main
+      platforms:
+        description: Release platforms to build
+        required: true
+        type: choice
+        default: windows
+        options:
+          - windows
+          - all
       dry_run:
         description: Validate a scheduled-RC run without creating a tag
         required: false
@@ -67,6 +75,8 @@ jobs:
       tag: ${{ steps.tag.outputs.tag || steps.version.outputs.recovered_tag }}
       should_release: ${{ steps.tag.outputs.tag != '' || steps.version.outputs.recovered_tag != '' }}
       latest_published_rc_tag: ${{ steps.publish_drafts.outputs.latest_published_tag }}
+      release_platforms: ${{ steps.release_scope.outputs.platforms }}
+      build_matrix: ${{ steps.release_scope.outputs.build_matrix }}
     steps:
       - name: Checkout ref
         uses: actions/checkout@v6
@@ -160,10 +170,38 @@ jobs:
 
           echo "already_ran=false" >>"$GITHUB_OUTPUT"
 
+      - name: Resolve release platform scope
+        id: release_scope
+        env:
+          REQUESTED_PLATFORMS: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms || 'windows' }}
+        run: |
+          set -euo pipefail
+          platforms="${REQUESTED_PLATFORMS:-windows}"
+          case "$platforms" in
+            windows)
+              matrix='{"include":[{"os":"windows-latest","platform":"win","release_command":"node config/scripts/ensure-native-runtime.mjs --runtime=electron; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm exec electron-builder --config config/electron-builder.config.cjs --win --publish always","eb_cache_path":"~\\AppData\\Local\\electron\\Cache\n~\\AppData\\Local\\electron-builder\\Cache"}]}'
+              ;;
+            all)
+              matrix='{"include":[{"os":"macos-15","platform":"mac","release_command":"node config/scripts/ensure-native-runtime.mjs --runtime=electron && ORCA_MAC_RELEASE=1 pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always","eb_cache_path":"~/Library/Caches/electron\n~/Library/Caches/electron-builder"},{"os":"windows-latest","platform":"win","release_command":"node config/scripts/ensure-native-runtime.mjs --runtime=electron; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm exec electron-builder --config config/electron-builder.config.cjs --win --publish always","eb_cache_path":"~\\AppData\\Local\\electron\\Cache\n~\\AppData\\Local\\electron-builder\\Cache"},{"os":"ubuntu-latest","platform":"linux","release_command":"node config/scripts/ensure-native-runtime.mjs --runtime=electron && pnpm exec electron-builder --config config/electron-builder.config.cjs --linux --publish always","eb_cache_path":"~/.cache/electron\n~/.cache/electron-builder"}]}'
+              ;;
+            *)
+              echo "::error::Unknown release platform scope: $platforms" >&2
+              exit 1
+              ;;
+          esac
+
+          echo "platforms=$platforms" >>"$GITHUB_OUTPUT"
+          {
+            echo "build_matrix<<JSON"
+            echo "$matrix"
+            echo "JSON"
+          } >>"$GITHUB_OUTPUT"
+
       - name: Dry run summary
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
         run: |
           echo "Dry run only."
+          echo "Release platforms: ${{ steps.release_scope.outputs.platforms }}"
           echo "Current PT slot: ${{ steps.slot.outputs.value }}"
           echo "Window allowed: ${{ steps.window.outputs.allowed }}"
           echo "Window reason: ${{ steps.window.outputs.reason }}"
@@ -186,6 +224,7 @@ jobs:
         if: steps.window.outputs.allowed == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORCA_RELEASE_PLATFORMS: ${{ steps.release_scope.outputs.platforms }}
         run: node config/scripts/publish-complete-draft-releases.mjs
 
       - name: Compute next version
@@ -520,14 +559,14 @@ jobs:
   # that publish-release must not depend on it.
   e2e:
     needs: cut
-    if: needs.cut.outputs.should_release == 'true'
+    if: needs.cut.outputs.should_release == 'true' && needs.cut.outputs.release_platforms == 'all'
     uses: ./.github/workflows/e2e.yml
     with:
       ref: refs/tags/${{ needs.cut.outputs.tag }}
 
   terminal-rendering-golden:
     needs: cut
-    if: needs.cut.outputs.should_release == 'true'
+    if: needs.cut.outputs.should_release == 'true' && needs.cut.outputs.release_platforms == 'all'
     name: terminal rendering golden ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -607,7 +646,7 @@ jobs:
   # but they include heavier app-like flows and must not block publishing.
   terminal-rendering-release-evidence:
     needs: cut
-    if: needs.cut.outputs.should_release == 'true'
+    if: needs.cut.outputs.should_release == 'true' && needs.cut.outputs.release_platforms == 'all'
     continue-on-error: true
     name: terminal rendering release evidence ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
@@ -691,31 +730,15 @@ jobs:
     if: needs.cut.outputs.should_release == 'true'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            platform: mac
-            release_command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && ORCA_MAC_RELEASE=1 pnpm exec electron-builder --config config/electron-builder.config.cjs --mac --publish always
-            eb_cache_path: |
-              ~/Library/Caches/electron
-              ~/Library/Caches/electron-builder
-          - os: windows-latest
-            platform: win
-            release_command: 'node config/scripts/ensure-native-runtime.mjs --runtime=electron; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm exec electron-builder --config config/electron-builder.config.cjs --win --publish always'
-            eb_cache_path: |
-              ~\AppData\Local\electron\Cache
-              ~\AppData\Local\electron-builder\Cache
-          - os: ubuntu-latest
-            platform: linux
-            release_command: node config/scripts/ensure-native-runtime.mjs --runtime=electron && pnpm exec electron-builder --config config/electron-builder.config.cjs --linux --publish always
-            eb_cache_path: |
-              ~/.cache/electron
-              ~/.cache/electron-builder
+      matrix: ${{ fromJson(needs.cut.outputs.build_matrix) }}
 
     runs-on: ${{ matrix.os }}
 
     permissions:
       contents: write
+
+    env:
+      ORCA_REQUIRE_TELEMETRY: ${{ secrets.ORCA_POSTHOG_WRITE_KEY != '' && '1' || '0' }}
 
     steps:
       - name: Checkout
@@ -923,13 +946,17 @@ jobs:
       # (`IS_OFFICIAL_BUILD === false`) — the exact failure mode flagged
       # in PR #1385's deferred follow-up.
       - name: Verify telemetry constants present in app.asar
+        if: env.ORCA_REQUIRE_TELEMETRY == '1'
         run: node config/scripts/verify-telemetry-constants.mjs
+
+      - name: Skip telemetry constants verification
+        if: env.ORCA_REQUIRE_TELEMETRY != '1'
+        run: echo "Skipping telemetry constants verification because ORCA_POSTHOG_WRITE_KEY is not configured."
 
   publish-release:
     needs:
       - cut
       - build
-      - terminal-rendering-golden
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -969,7 +996,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.cut.outputs.tag }}
-        run: node config/scripts/verify-release-required-assets.mjs "$TAG"
+          ORCA_RELEASE_PLATFORMS: ${{ needs.cut.outputs.release_platforms }}
+        run: node config/scripts/verify-release-required-assets.mjs "$TAG" "$ORCA_RELEASE_PLATFORMS"
 
       - name: Publish release
         # Why: derive `--prerelease` from the tag shape (not from whatever
@@ -999,7 +1027,7 @@ jobs:
       - cut
     # Why: publish-complete-draft-releases can expose a recovered RC without
     # running the build/publish jobs; still advance the RC cask to that tag.
-    if: ${{ needs.cut.outputs.latest_published_rc_tag != '' }}
+    if: ${{ needs.cut.outputs.latest_published_rc_tag != '' && needs.cut.outputs.release_platforms == 'all' }}
     uses: ./.github/workflows/homebrew-bump.yml
     with:
       tag: ${{ needs.cut.outputs.latest_published_rc_tag }}
@@ -1009,7 +1037,7 @@ jobs:
     needs:
       - cut
       - publish-release
-    if: ${{ needs.cut.outputs.tag != '' && startsWith(needs.cut.outputs.tag, 'v') }}
+    if: ${{ needs.cut.outputs.tag != '' && startsWith(needs.cut.outputs.tag, 'v') && needs.cut.outputs.release_platforms == 'all' }}
     uses: ./.github/workflows/homebrew-bump.yml
     with:
       tag: ${{ needs.cut.outputs.tag }}

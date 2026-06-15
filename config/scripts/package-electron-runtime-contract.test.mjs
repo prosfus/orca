@@ -56,24 +56,30 @@ describe('Electron runtime package contract', () => {
       'utf8'
     )
     const parsedWorkflow = parse(releaseWorkflow)
-    const releaseCommands = new Map(
-      parsedWorkflow.jobs.build.strategy.matrix.include.map(({ platform, release_command }) => [
-        platform,
-        release_command
-      ])
+    const releaseScopeStep = parsedWorkflow.jobs.cut.steps.find(
+      (step) => step.name === 'Resolve release platform scope'
     )
 
-    expect([...releaseCommands.keys()].sort()).toEqual(['linux', 'mac', 'win'])
-    for (const command of releaseCommands.values()) {
-      expect(command).toContain('node config/scripts/ensure-native-runtime.mjs --runtime=electron')
-      expect(command).toContain('electron-builder')
-      expect(command.indexOf('ensure-native-runtime')).toBeLessThan(
-        command.indexOf('electron-builder')
-      )
-    }
-    expect(releaseCommands.get('mac')).toContain(' && ORCA_MAC_RELEASE=1 ')
-    expect(releaseCommands.get('linux')).toContain(' && pnpm exec electron-builder ')
-    expect(releaseCommands.get('win')).toContain(
+    expect(parsedWorkflow.on.workflow_dispatch.inputs.platforms.default).toBe('windows')
+    expect(parsedWorkflow.jobs.cut.outputs.release_platforms).toBe(
+      '${{ steps.release_scope.outputs.platforms }}'
+    )
+    expect(parsedWorkflow.jobs.build.strategy.matrix).toBe(
+      '${{ fromJson(needs.cut.outputs.build_matrix) }}'
+    )
+    expect(releaseScopeStep.run).toContain(
+      'node config/scripts/ensure-native-runtime.mjs --runtime=electron'
+    )
+    expect(releaseScopeStep.run).toContain('electron-builder')
+    expect(releaseScopeStep.run.indexOf('ensure-native-runtime')).toBeLessThan(
+      releaseScopeStep.run.indexOf('electron-builder')
+    )
+    expect(releaseScopeStep.run).toContain('"platform":"mac"')
+    expect(releaseScopeStep.run).toContain('"platform":"win"')
+    expect(releaseScopeStep.run).toContain('"platform":"linux"')
+    expect(releaseScopeStep.run).toContain(' && ORCA_MAC_RELEASE=1 ')
+    expect(releaseScopeStep.run).toContain(' && pnpm exec electron-builder ')
+    expect(releaseScopeStep.run).toContain(
       '; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm exec electron-builder '
     )
   })
@@ -118,6 +124,12 @@ describe('Electron runtime package contract', () => {
 
     expect(releaseWorkflow.jobs['homebrew-bump'].if).toContain(
       "startsWith(needs.cut.outputs.tag, 'v')"
+    )
+    expect(releaseWorkflow.jobs['homebrew-bump'].if).toContain(
+      "needs.cut.outputs.release_platforms == 'all'"
+    )
+    expect(releaseWorkflow.jobs['homebrew-bump-published-rc-draft'].if).toContain(
+      "needs.cut.outputs.release_platforms == 'all'"
     )
     expect(releaseWorkflow.jobs['homebrew-bump'].if).not.toContain('-rc.')
     expect(releaseWorkflow.jobs['homebrew-bump-published-rc-draft'].with.tag).toBe(
@@ -229,6 +241,7 @@ describe('Electron runtime package contract', () => {
     const pullRequestPaths = goldenWorkflow.on.pull_request.paths
     const releaseGoldenJob = releaseWorkflow.jobs['terminal-rendering-golden']
     const releaseEvidenceJob = releaseWorkflow.jobs['terminal-rendering-release-evidence']
+    const releaseE2eJob = releaseWorkflow.jobs.e2e
     const releaseBuildNeeds = releaseWorkflow.jobs.build.needs
     const publishReleaseNeeds = releaseWorkflow.jobs['publish-release'].needs
 
@@ -255,9 +268,11 @@ describe('Electron runtime package contract', () => {
     expect(pullRequestPaths).toContain('src/renderer/src/lib/pane-manager/**')
     expect(releaseBuildNeeds).not.toContain('terminal-rendering-golden')
     expect(releaseBuildNeeds).not.toContain('terminal-rendering-release-evidence')
-    expect(publishReleaseNeeds).toContain('terminal-rendering-golden')
+    expect(publishReleaseNeeds).not.toContain('terminal-rendering-golden')
     expect(publishReleaseNeeds).toContain('build')
     expect(publishReleaseNeeds).not.toContain('terminal-rendering-release-evidence')
+    expect(releaseE2eJob.if).toContain("needs.cut.outputs.release_platforms == 'all'")
+    expect(releaseGoldenJob.if).toContain("needs.cut.outputs.release_platforms == 'all'")
     expect(releaseGoldenJob['continue-on-error']).toBeUndefined()
     expect(releaseGoldenJob.strategy.matrix.include.map(({ platform }) => platform).sort()).toEqual(
       ['linux', 'mac', 'windows']
@@ -266,6 +281,7 @@ describe('Electron runtime package contract', () => {
       'xvfb-run --auto-servernum env SKIP_BUILD=1 ORCA_E2E_FORWARD_APP_LOGS=1 pnpm run test:e2e:terminal-rendering-golden'
     )
     expect(releaseEvidenceJob['continue-on-error']).toBe(true)
+    expect(releaseEvidenceJob.if).toContain("needs.cut.outputs.release_platforms == 'all'")
     expect(
       releaseEvidenceJob.strategy.matrix.include.map(({ platform }) => platform).sort()
     ).toEqual(['linux', 'mac', 'windows'])
